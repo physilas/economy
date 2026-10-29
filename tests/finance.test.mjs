@@ -81,15 +81,40 @@ test('reports remain published until the next reporting date, then update',()=>{
   assert.ok(s.stocks.terra.report.eps>0);assert.ok(s.stocks.index.report.fair>0);
 });
 
+test('dividends have a matching ex-dividend price adjustment, preventing free dividend capture',()=>{
+  const withDividend=game();withDividend.elapsed=DAY-1;withDividend.stocks.sylva.quantity=100;
+  const withoutDividend=structuredClone(withDividend),dps=withDividend.stocks.sylva.report.dps;
+  withoutDividend.stocks.sylva.report.dps=0;
+  advance(withDividend,now+1000);advance(withoutDividend,now+1000);
+  near(withDividend.cash-withoutDividend.cash,100*dps*.85);
+  near(withoutDividend.stocks.sylva.price-withDividend.stocks.sylva.price,dps);
+});
+
 test('supply planning exposes input deficits and setup configures valid buffers',()=>{
   const s=game();build(s,'sawmill');const row=supplyPlan(s).find(r=>r.id==='wood');assert.ok(row.net<0);
   assert.ok(setupSupplies(s,'sawmill').ok);assert.equal(s.automation.wood.mode,'buy');assert.ok(s.automation.wood.low<=s.automation.wood.high);
 });
 
+test('margin guard pauses negative-margin production and resumes after prices recover',()=>{
+  const s=game();build(s,'bakery');s.inventory.grain=100;s.inventory.water=100;s.profitGuard=true;
+  s.market.food.factor=.45;s.market.food.pressure=-1.5;
+  const cash=s.cash,grain=s.inventory.grain;advance(s,now+1000);
+  assert.equal(s.inventory.food,0);near(s.cash,cash);near(s.inventory.grain,grain);assert.equal(s.buildings.bakery.active,1);
+  s.market.food.factor=2;s.market.food.pressure=1;
+  advance(s,now+2000);assert.ok(s.inventory.food>0);assert.ok(s.cash<cash);
+  assert.equal(decode(encode(s),now+2000).game.profitGuard,true);
+});
+
 test('empty companies have a recovery path with a cooldown',()=>{
   const s=createGame('Recovery',now,42);s.cash=0;for(const r of Object.keys(s.inventory))s.inventory[r]=0;
-  assert.ok(emergencyAid(s).ok);assert.equal(s.cash,200);s.cash=0;assert.equal(emergencyAid(s).ok,false);
+  assert.ok(emergencyAid(s).ok);assert.equal(s.cash,400);s.cash=0;assert.equal(emergencyAid(s).ok,false);
   s.elapsed=300;assert.ok(emergencyAid(s).ok);
+});
+
+test('recovery aid alone funds a working starter without relying on unclaimed achievements',()=>{
+  const s=createGame('Restart',now,42);s.cash=0;s.achievements=ACHIEVEMENTS.map(a=>a.id);for(const id of Object.keys(s.inventory))s.inventory[id]=0;
+  emergencyAid(s);assert.ok(build(s,'lumber').ok);const cash=s.cash;s.automation.wood={mode:'sell',low:0,high:20};
+  advance(s,now+300000);assert.ok(s.cash>cash);assert.ok(s.stats.produced>0);
 });
 
 test('a debt spiral has a recovery path that preserves discoveries but cancels all financial positions',()=>{

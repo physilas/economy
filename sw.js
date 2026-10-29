@@ -1,5 +1,5 @@
 /* All paths are relative to this worker, including on GitHub project Pages. */
-const VERSION = 'null-v1.2.0';
+const VERSION = 'null-v1.3.1';
 const FILES = ['./','./index.html','./style.css','./manifest.webmanifest','./src/app.mjs','./src/views.mjs','./src/icons.mjs','./src/data.mjs','./src/engine.mjs','./src/storage.mjs','./src/worker.mjs','./src/math.mjs','./src/help.mjs','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
 const absolute = path => new URL(path,self.location.href).href;
 

@@ -42,6 +42,13 @@ test('unaffordable construction is atomic and materials are priced', () => {
   assert.equal(s.buildings.smelter.count, 2); assert.ok(s.inventory.bricks >= 0);
 });
 
+test('construction capitalizes owned materials instead of deleting their value',()=>{
+  const s=game();s.cash=100000;s.tier=2;s.inventory.bricks=80;s.inventory.planks=60;
+  const before=assets(s).total,q=buildQuote(s,'smelter',2);
+  assert.equal(q.materialCash,0);assert.ok(q.book>q.total);assert.ok(build(s,'smelter',2).ok);
+  near(assets(s).total,before);assert.equal(s.inventory.bricks,0);assert.equal(s.inventory.planks,0);
+});
+
 test('production stops with no inputs, wages or storage', () => {
   const s = game(); s.tier = 1; s.cash = 10000; build(s, 'sawmill');
   s.inventory.wood = 0; advance(s, START + 60000); assert.equal(s.inventory.planks, 0);
@@ -114,8 +121,8 @@ test('offline limit, substep time and backward clocks are safe', () => {
   assert.equal(result.seconds, OFFLINE_LIMIT); assert.equal(result.skipped, 103); assert.equal(s.lastUpdate, START + (OFFLINE_LIMIT + 100) * 1000 + 3000);
 });
 
-test('week-long complex economy remains finite with no negative inventories', () => {
-  const s = game(); s.cash = 1e8; s.tier = 6;
+for(const guard of [false,true])test(`week-long complex economy remains finite with margin guard ${guard ? 'on' : 'off'}`, () => {
+  const s = game(); s.cash = 1e8; s.tier = 6;s.profitGuard=guard;
   for (const id of Object.keys(BUILDINGS)) build(s, id, 1);
   for (const id of ['housing', 'power', 'warehouse', 'transport', 'solar', 'lab']) build(s, id, 10, true);
   for (const id of Object.keys(RESOURCES)) { s.inventory[id] = 100; s.automation[id] = { mode: 'both', low: 30, high: 150 }; }

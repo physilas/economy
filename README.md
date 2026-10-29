@@ -33,7 +33,7 @@ Browserdaten sind lokal: Wer sie löscht, verliert auch lokale Spielstände. **E
 
 ## Wirtschaft und Entscheidungen
 
-Produktionsketten benötigen Vorprodukte, Personal, Energie, Transport, Lagerplatz und Betriebskapital. Skaleneffekte konkurrieren mit steigenden Baukosten, Knappheit und Umweltkosten. Eine Mengenplanung macht Zulieferdefizite sichtbar. Strategien, Ausbaustufen und Forschung verändern die Unternehmensleistung.
+Produktionsketten benötigen Vorprodukte, Personal, Energie, Transport, Lagerplatz und Betriebskapital. Skaleneffekte konkurrieren mit steigenden Baukosten, Knappheit und Umweltkosten. Eine Mengenplanung macht Zulieferdefizite sichtbar. Ein optionaler Margenwächter pausiert offensichtliche Verlustketten und startet sie bei erholten Preisen wieder. Strategien, Ausbaustufen und Forschung verändern die Unternehmensleistung.
 
 Der Markt reagiert auf eigene Handelsmengen, externe Nachfrage, Konjunktur und Ereignisse. Aufträge werden mit einem integrierten marginalen Preiseffekt abgerechnet; Aufteilen eines Auftrags erzeugt keinen kostenlosen Preisvorteil. Automatik und Limitaufträge handeln nach den gesetzten Regeln.
 
@@ -63,11 +63,14 @@ Die App läuft direkt aus `index.html`; ein Build ist nicht nötig. GitHub Pages
 ```sh
 npm test
 npm run check
+npm run test:long
 python3 -m http.server 4187 --bind 127.0.0.1
 ```
 
 Node.js 22 oder neuer wird für die Tests benötigt, Python nur für eine lokale HTTP-Vorschau. Die App selbst hat keine Paketabhängigkeiten. Der Service Worker benötigt HTTPS oder localhost.
 
 Die Tests prüfen unter anderem deterministische Live-/Offline-Berechnung, Stundenerträge beim Sekundentakt, Konstruktion, Preiswirkung, unmögliche Rückverkaufsgewinne, Kredite, Zinsen, Steuern, Fälligkeiten, Optionsmathematik, Wiederanlage, Immobilien, Berichte, versteckte Freischaltungen, Schema-Validierung, beschädigte Sicherungen und eine simulierte Offline-Woche. GitHub Actions führt die Prüfungen bei jedem Push aus.
+
+Der zusätzliche Langzeittest beginnt mit dem normalen Startkonto und verwendet ausschließlich reguläre Spielaktionen. Ein einfacher Unternehmensmanager baut, schafft Kapazitäten, richtet Handel ein und forscht. Innerhalb von bis zu 14 simulierten echten Tagen müssen alle Epochen und die erste Neugründung erreichbar sein. Es werden weder Geld noch Freischaltungen injiziert.
 
 Speicherformat-Version und App-Version sind getrennt. Ergänzte Spielfelder erhalten beim Laden alter Stände sichere Standardwerte. Für App-Dateiänderungen die Release-Version und den Service-Worker-Cache-Namen gemeinsam erhöhen.

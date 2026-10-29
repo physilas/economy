@@ -198,7 +198,11 @@ async function action(button) {
   if(action==='tab'){go(id);return;}
   if(action==='saves'||action==='guide'){go(action);return;}
   if(action==='install'){installHelp();return;}
-  if(action==='info'){const item=help(id,game);openDialog(item.title,item.body);return;}
+  if(action==='info'){
+    const item=help(id,game),paragraphs=item.body.match(/<p>[\s\S]*?<\/p>/g)||[item.body];
+    const body=paragraphs.length>2?paragraphs.slice(0,2).join('')+`<details class="help-more"><summary>Rechenregeln & Details</summary>${paragraphs.slice(2).join('')}</details>`:item.body;
+    openDialog(item.title,body);return;
+  }
   if(action==='qty'){ui.qty=Number(id);render();return;}
   if(action==='amount'){ui.amount=E.clamp(ui.amount+Number(id),1,1e14);render();return;}
   if(action==='expand'){ui.open.has(id)?ui.open.delete(id):ui.open.add(id);render();return;}
@@ -237,6 +241,7 @@ async function action(button) {
   if(action==='upgrade'){finish(E.upgrade(game,id));return;}
   if(action==='trade'){finish(E.trade(game,id,ui.qty,side),oldTier);return;}
   if(action==='policy'){game.policy=id;finish(Eresult('Unternehmensstrategie geändert.'));return;}
+  if(action==='profitGuard'){game.profitGuard=!game.profitGuard;finish(Eresult(game.profitGuard?'Margenwächter aktiv. Bei negativer Handelsmarge pausieren Betriebe automatisch.':'Margenwächter ausgeschaltet.'));return;}
   if(action==='priority'){game.priority=id;finish(Eresult('Produktionsreihenfolge geändert.'));return;}
   if(action==='setupSupplies'){
     openDialog('Vorprodukte bevorraten?','<p>Die benötigten Vorprodukte werden am Markt für etwa zwei Spielstunden eingekauft. Bereits vorhandene Verkaufseinstellungen bleiben mit ausreichend Abstand erhalten. Die Einkäufe kosten laufend Geld und nutzen deine freie Betriebskasse.</p>',()=>finish(E.setupSupplies(game,id)),'Einkauf einrichten');return;

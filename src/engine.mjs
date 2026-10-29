@@ -25,7 +25,7 @@ export function createGame(name = 'Mein Unternehmen', now = Date.now(), seed = (
     properties:Object.fromEntries(Object.keys(PROPERTIES).map(id=>[id,{count:0,basis:0,index:1,occupancy:.9,history:[1]}])),
     options:[], savingsPlans:[], treasury:{enabled:false,floor:150,target:600,bank:'reserve'}, emergencyNext:0,
     banks: { reserve: 0, savings: 0 }, bonds: [], ventures: [], orders: [], loans: [], debt: 0,
-    policy: 'balanced', priority: 'balanced', reputation: 50, tier: 0, legacy: 0, prestigeCount: 0,
+    policy: 'balanced', priority: 'balanced', profitGuard:false, reputation: 50, tier: 0, legacy: 0, prestigeCount: 0,
     contracts: [], board: [], achievements: [], journal: [], nextId: 1,
     event: null, economy: { cycle: 1, rate: 0.001, inflation: 2, phase: 'Stabil' },
     stats: { built: 0, trades: 0, produced: 0, revenue: 0, expenses: 0, interest: 0, dividends: 0, rent:0, optionPnl:0, grants:0, taxes: 0, contracts: 0, peak: 1200, lastProfit: 0, lastRevenue: 0, lastCosts: 0, history: [], resets: 0 },
@@ -147,11 +147,13 @@ export function buildingRate(s, id, offline = false) {
   }
   const r = Object.keys(b.output)[0];
   const storage = s.inventory[r] >= warehouseCapacity(s) - 0.01 ? 0 : 1;
-  const utilization = own.active ? global * supply * storage : 0;
+  let utilization = own.active ? global * supply * storage : 0;
   const outValue = sum(Object.fromEntries(Object.entries(b.output).map(([k, v]) => [k, v * price(s, k)])));
   const inValue = sum(Object.fromEntries(Object.entries(b.input).map(([k, v]) => [k, v * price(s, k)])));
   const margin = (outValue - inValue) * mult - b.wage * (1 + own.level * 0.08) * POLICIES[s.policy].wage;
-  return { utilization, mult, units: own.active * mult * utilization, margin, global, supply, storage };
+  const guarded=!!s.profitGuard&&((outValue*(1-feeRate(s)-.008)-inValue*(1+feeRate(s)+.008))*mult-b.wage*(1+own.level*.08)*POLICIES[s.policy].wage)<0;
+  if(guarded)utilization=0;
+  return { utilization, mult, units: own.active * mult * utilization, margin, global, supply, storage,guarded };
 }
 
 export function buildQuote(s, id, amount = 1, infrastructure = false) {
@@ -160,12 +162,13 @@ export function buildQuote(s, id, amount = 1, infrastructure = false) {
   const n = infrastructure ? s.infra[id] : s.buildings[id].count, growth = infrastructure ? d.growth : 1.13;
   const cash = d.cost * Math.pow(growth, n) * (Math.pow(growth, amount) - 1) / (growth - 1);
   const materials = {};
-  let materialCash = 0;
+  let materialCash = 0,ownedMaterialsValue=0;
   for (const [r, q] of Object.entries(d.materials || {})) {
     materials[r] = q * amount;
     materialCash += quote(s, r, Math.max(0, q * amount - s.inventory[r]), 'buy').total;
+    ownedMaterialsValue+=Math.min(q*amount,s.inventory[r])*price(s,r)*.98;
   }
-  return { cash, materials, materialCash, total: cash + materialCash };
+  return { cash, materials, materialCash, total: cash + materialCash,book:cash+materialCash+ownedMaterialsValue };
 }
 
 export function build(s, id, amount = 1, infrastructure = false) {
@@ -184,8 +187,8 @@ export function build(s, id, amount = 1, infrastructure = false) {
     s.inventory[r] = Math.max(0, s.inventory[r] - n);
   }
   s.cash = Math.max(0, s.cash - q.cash);
-  if (infrastructure) { s.infra[id] += amount; s.infraBook[id] += q.total; }
-  else { const own = s.buildings[id]; own.count += amount; own.active += amount; own.book += q.total; s.stats.built += amount; }
+  if (infrastructure) { s.infra[id] += amount; s.infraBook[id] += q.book; }
+  else { const own = s.buildings[id]; own.count += amount; own.active += amount; own.book += q.book; s.stats.built += amount; }
   checkProgress(s);
   checkAchievements(s);
   return ok(`${amount}× ${d.name} gebaut.`, { total: q.total });
@@ -250,14 +253,24 @@ function productionContext(s, offline) {
   const c = capacity(s), policy = POLICIES[s.policy];
   const ids = Object.keys(BUILDINGS).filter(id => s.buildings[id].active);
   if (s.priority === 'advanced') ids.reverse();
-  return { capacity:c, storage:warehouseCapacity(s), cashBuffer:Math.max(50,c.wages*.25),
+  const context={ capacity:c, storage:warehouseCapacity(s), cashBuffer:Math.max(50,c.wages*.25),
     automated:Object.keys(RESOURCES).filter(id=>RESOURCES[id].tier<=s.tier&&s.automation[id].mode!=='off'),
     entries:ids.map(id=>{
       const b=BUILDINGS[id],own=s.buildings[id],mult=productionBonus(s,id,offline),scale=own.active*mult/HOUR;
-      return { input:Object.entries(b.input).map(([r,q])=>[r,q*scale]), output:Object.entries(b.output).map(([r,q])=>[r,q*scale]),
+      return { id,input:Object.entries(b.input).map(([r,q])=>[r,q*scale]), output:Object.entries(b.output).map(([r,q])=>[r,q*scale]),
         wages:own.active*b.wage*(1+own.level*.08)*policy.wage/HOUR };
     }),
   };
+  refreshProfitGuard(s,context);return context;
+}
+
+function refreshProfitGuard(s,context){
+  if(!s.profitGuard)return;
+  const fee=feeRate(s)+.008;
+  for(const entry of context.entries){
+    const output=entry.output.reduce((n,[r,q])=>n+q*price(s,r)*(1-fee),0),input=entry.input.reduce((n,[r,q])=>n+q*price(s,r)*(1+fee),0);
+    entry.guarded=output-input-entry.wages<0;
+  }
 }
 
 function produce(s, seconds, context) {
@@ -270,6 +283,7 @@ function produce(s, seconds, context) {
   const actualPower = c.cleanEnergy + s.infra.power * 25 * (1 + s.research.energy * 0.15) * powerFraction * coalRatio;
   const global = Math.min(c.staffing, c.energy ? actualPower / c.energy : 1, c.logistics, 1) * c.environment;
   for (const entry of context.entries) {
+    if(entry.guarded)continue;
     let factor = global;
     for (const [r, q] of entry.input) factor = Math.min(factor, s.inventory[r] / (q * seconds));
     for (const [r, q] of entry.output) factor = Math.min(factor, Math.max(0, context.storage - s.inventory[r]) / (q * seconds));
@@ -496,9 +510,9 @@ export function emergencyAid(s){
   const a=assets(s),liquid=a.inventory+a.banks+a.securities;
   if(s.cash>=50||liquid>=75)return fail('Nutze zuerst vorhandenes Geld, Lagerbestände oder liquide Anlagen.');
   if(s.emergencyNext>s.elapsed)return fail('Ein neuer Notauftrag ist in '+Math.ceil((s.emergencyNext-s.elapsed)/60)+' echten Minuten verfügbar.');
-  s.cash+=200;s.emergencyNext=s.elapsed+300;s.stats.grants+=200;
-  log(s,'Öffentlicher Notauftrag erledigt: +200 € Betriebskapital.','contract');
-  return ok('200 € Starthilfe. Pausiere unrentable Betriebe und starte eine tragfähige Kette.');
+  s.cash+=400;s.emergencyNext=s.elapsed+300;s.stats.grants+=400;
+  log(s,'Öffentlicher Notauftrag erledigt: +400 € Betriebskapital.','contract');
+  return ok('400 € Starthilfe. Pausiere unrentable Betriebe und starte eine tragfähige Kette.');
 }
 
 export function restructure(s,now=Date.now()){
@@ -708,8 +722,16 @@ function daily(s) {
   const taxable = Math.max(0, s.dayLedger.revenue - s.dayLedger.costs), tax = taxable * 0.12;
   const paid = Math.min(s.cash, tax); s.cash -= paid; s.debt += tax - paid; s.stats.taxes += tax;
   s.dayLedger = { revenue: 0, costs: 0 };
+  const dividends={};
+  for(const[id,d]of Object.entries(STOCKS)){
+    if(id==='index')continue;
+    const p=s.stocks[id],payment=Math.min(p.report.dps,p.price*.05);
+    dividends[id]=payment;p.price-=payment;
+  }
+  s.stocks.index.price=100*Object.entries(STOCKS).filter(([id])=>id!=='index').reduce((n,[id,d])=>n+s.stocks[id].price/d.base,0)/5;
+  dividends.index=100*Object.entries(STOCKS).filter(([id])=>id!=='index').reduce((n,[id,d])=>n+dividends[id]/d.base,0)/5;
   for (const [id, d] of Object.entries(STOCKS)) {
-    const p = s.stocks[id], gross = p.quantity * p.report.dps;
+    const p = s.stocks[id], gross = p.quantity * dividends[id];
     const net=gross*.85;
     if(p.drip){p.reserve+=net;const quantity=Math.floor(p.reserve/(p.price*1.005));if(quantity>0){const cost=quantity*p.price*1.005;p.quantity+=quantity;p.basis+=cost;p.reserve=Math.max(0,p.reserve-cost);}}
     else s.cash+=net;
@@ -800,7 +822,7 @@ export function advance(s, now = Date.now(), options = {}) {
     s.elapsed += STEP;
     settleMaturities(s);
     manageTreasury(s,true);
-    if(s.elapsed%5===0)marketTick(s,5/HOUR);
+    if(s.elapsed%5===0){marketTick(s,5/HOUR);refreshProfitGuard(s,context);}
     if (s.elapsed % HOUR === 0) {hourly(s);context=productionContext(s,!!options.offline);}
     if (options.onProgress && i % 3600 === 0) options.onProgress(i / steps);
   }
@@ -824,6 +846,7 @@ export function validateGame(raw, now = Date.now()) {
   s.tier = Math.floor(finite(raw.tier, 0, 6)); s.legacy = Math.floor(finite(raw.legacy, 0, 10000)); s.prestigeCount = Math.floor(finite(raw.prestigeCount, 0, 10000));
   s.reputation = finite(raw.reputation, 50, 100); s.nextId = Math.max(1, Math.floor(finite(raw.nextId, 1, 1e12)));
   s.policy = Object.hasOwn(POLICIES, raw.policy) ? raw.policy : 'balanced'; s.priority = raw.priority === 'advanced' ? 'advanced' : 'balanced';
+  s.profitGuard=raw.profitGuard===true;
   for (const id of Object.keys(RESEARCH)) s.research[id] = Math.floor(finite(raw.research?.[id], 0, RESEARCH[id].max));
   for (const id of Object.keys(INFRA)) { s.infra[id] = Math.floor(finite(raw.infra?.[id], 0, 10000)); s.infraBook[id] = finite(raw.infraBook?.[id]); }
   for (const id of Object.keys(BUILDINGS)) {
