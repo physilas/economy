@@ -1,11 +1,13 @@
 import * as E from './engine.mjs';
 import * as V from './views.mjs';
 import * as Store from './storage.mjs';
-import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, BONDS, VENTURES, DAY, OFFLINE_LIMIT, RELEASE, PROGRAMME_CHOICES } from './data.mjs';
+import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, BONDS, VENTURES, DAY, RELEASE, PROGRAMME_CHOICES } from './data.mjs';
 import { icon, mark } from './icons.mjs';
 import {help} from './help.mjs';
 import {previewBuilding} from './planning.mjs';
 import {programmeOffer,startProgramme,reserveProgrammeMaterials} from './campaign.mjs';
+import {normalizeUI} from './ui-state.mjs';
+import {advanceOffline,advanceOfflineBatched} from './offline.mjs';
 
 const app = document.querySelector('#app'), dialog = document.querySelector('#dialog');
 const leaseKey = 'null-economy:lease', sessionId = globalThis.crypto?.randomUUID?.() || String(Math.random());
@@ -65,6 +67,7 @@ function writeView(html,live){
 }
 function render(live=false) {
   if (busy) return;
+  normalizeUI(ui,game);
   if (ui.screen === 'menu') { app.innerHTML = V.menu(game,ui); return; }
   const content = ui.tab === 'saves' ? V.savesView(game,ui,saves()) : ui.tab === 'guide' ? V.guide(game) : !game ? '' :
     ui.tab === 'overview' ? V.overview(game,ui) : ui.tab === 'production' ? V.production(game,ui) : ui.tab === 'market' ? V.market(game,ui) :
@@ -100,8 +103,7 @@ function finish(result, oldTier = game?.tier) {
 }
 
 async function catchUp(s, now) {
-  if(now<s.lastUpdate){s.lastUpdate=now;return {game:s,result:{seconds:0,skipped:0,steps:0,clockBack:true}};}
-  if ((now - s.lastUpdate) / 1000 < 120) return { game:s, result:E.advance(s,now) };
+  if ((now - s.lastUpdate) / 1000 < 120) return {game:s,result:advanceOffline(s,now)};
   app.innerHTML = `<main class="loading-screen">${mark()}<h2>Die Welt stand nicht still.</h2><p>Deine Produktion, Märkte und Anlagen werden für die vergangene Zeit nachgerechnet.</p><progress id="offline-progress" value="0" max="1" aria-label="Offline-Fortschritt berechnen"></progress><p id="offline-progress-label" class="eyebrow">Deine Wirtschaft rechnet</p></main>`;
   if (typeof Worker !== 'undefined') {
     try {
@@ -116,17 +118,10 @@ async function catchUp(s, now) {
       });
     } catch (error) { console.warn('Worker unavailable; using cooperative catchup.',error); }
   }
-  // Older WebViews still yield between batches rather than blocking the interface.
-  const target = Math.min(now,s.lastUpdate + OFFLINE_LIMIT*1000), total = Math.max(1,target-s.lastUpdate), initial=s.lastUpdate;
-  const result = {seconds:0,skipped:Math.max(0,(now-target)/1000),steps:0,cash:0,wealth:0,produced:0,interest:0,dividends:0,taxes:0};
-  while (s.lastUpdate + 1000 <= target) {
-    const part=E.advance(s,Math.min(target,s.lastUpdate+3600000),{offline:true});
-    for(const key of Object.keys(result))if(key!=='skipped')result[key]+=part[key]||0;
-    const node=document.querySelector('#offline-progress');if(node)node.value=(s.lastUpdate-initial)/total;
-    await new Promise(resolve=>setTimeout(resolve,0));
-  }
-  if (now-target>0) s.lastUpdate=now-(target-s.lastUpdate);
-  return {game:s,result};
+  return advanceOfflineBatched(s,now,{onProgress:progress=>{
+    const node=document.querySelector('#offline-progress');if(node)node.value=progress;
+    const label=document.querySelector('#offline-progress-label');if(label)label.textContent=`${Math.floor(progress*100)} % nachgerechnet`;
+  }});
 }
 
 function offlineReport(result, oldTier) {
@@ -137,7 +132,7 @@ function offlineReport(result, oldTier) {
 
 async function resume(s = game, force = false) {
   if (!s || busy) return;
-  if(force&&s===game){try{const latest=Store.load();if(latest&&latest.game.lastUpdate>s.lastUpdate)s=latest.game;}catch{}}
+  if(force&&s===game){try{s=Store.loadCurrent(s);}catch{}}
   if (!claimLease(force)) {
     openDialog('Ein Unternehmen. Eine Sitzung.','<p>NULL läuft bereits in einem anderen Tab. Um doppelte Simulation und widersprüchliche Spielstände zu vermeiden, kann immer nur eine Sitzung aktiv sein.</p><p>Beim Fortsetzen hier wird die andere Sitzung angehalten.</p>',()=>resume(s,true),'Hier fortsetzen'); return;
   }
@@ -165,7 +160,7 @@ function prepareNew() {
   openDialog('Ein neuer Anfang.',`<p>Wie soll dein Unternehmen heißen?</p><label for="new-name" class="mt16">Unternehmensname</label><input id="new-name" type="text" maxlength="36" value="Mein Unternehmen" autocomplete="off">${game?'<p>Ein neues Unternehmen ersetzt den automatischen Spielstand. Manuelle Speicherplätze bleiben erhalten. Exportiere deinen bisherigen Stand vorher, wenn du ihn behalten möchtest.</p>':''}`,async()=>{
     const name=document.querySelector('#new-name')?.value||'Mein Unternehmen';
     if(!claimLease()) { toast('Bitte schließe zuerst die andere aktive NULL-Sitzung.',true);return; }
-    if(game)safeSave(); const next=E.createGame(name);ui.tab='overview';ui.productionTab='business';ui.financeTab='bank';ui.open.clear();await resume(next);
+    if(game&&running)safeSave(); const next=E.createGame(name);ui.tab='overview';ui.productionTab='business';ui.financeTab='bank';ui.open.clear();await resume(next);
   },'Unternehmen gründen');
   setTimeout(()=>document.querySelector('#new-name')?.select(),50);
 }
@@ -201,7 +196,7 @@ async function action(button) {
   }
   if(action==='new'){prepareNew();return;}
   if(action==='continue'){
-    try { const latest=Store.load();if(latest&&latest.game.lastUpdate>game.lastUpdate)game=latest.game; }catch{}
+    try { game=Store.loadCurrent(game); }catch{}
     await resume();return;
   }
   if(action==='menu'){if(running){E.advance(game,Date.now());safeSave();}running=false;releaseLease();ui.screen='menu';render();return;}
@@ -227,7 +222,7 @@ async function action(button) {
   if(action==='import'){document.querySelector('#import-file').click();return;}
   if(action==='loadSlot'){
     openDialog('Diesen Stand laden?','<p>Dein aktueller automatischer Stand wird ersetzt. Die seit der Sicherung verstrichene Zeit wird nachgerechnet. Exportiere vorher einen Stand, den du behalten möchtest.</p>',async()=>{
-      try { const loaded=Store.load(id);if(!loaded)throw new Error('Spielstand nicht gefunden.');if(game)safeSave();ui.tab='overview';await resume(loaded.game);if(loaded.recovered)toast('Letzte gültige Sicherungskopie wiederhergestellt.'); }catch(error){toast(error.message,true);}
+      try { const loaded=Store.load(id);if(!loaded)throw new Error('Spielstand nicht gefunden.');if(game&&running)safeSave();ui.tab='overview';await resume(loaded.game);if(loaded.recovered)toast('Letzte gültige Sicherungskopie wiederhergestellt.'); }catch(error){toast(error.message,true);}
     },'Spielstand laden');return;
   }
   if(action==='deleteSlot'){openDialog('Spielstand löschen?','<p>Dieser manuelle Speicherplatz und seine Sicherungskopie werden gelöscht.</p>',()=>{try{Store.deleteSave(id);render();toast('Spielstand gelöscht.');}catch(error){toast(error.message,true);}},'Löschen');return;}
@@ -360,7 +355,7 @@ document.querySelector('#import-file').addEventListener('change',async event=>{
   try {
     if(file.size>2500000)throw new Error('Die Datei ist zu groß.');
     const loaded=Store.decode(await file.text());
-    openDialog('Spielstand importieren?',`<p><strong>${V.esc(loaded.game.name)}</strong><br>${V.cash(loaded.game.cash)} · ${TIERS[loaded.game.tier].name}</p><p>Der aktuelle automatische Stand wird ersetzt. Die verstrichene Zeit wird anschließend nachgerechnet.</p>`,async()=>{if(game)safeSave();ui.tab='overview';await resume(loaded.game);},'Importieren');
+    openDialog('Spielstand importieren?',`<p><strong>${V.esc(loaded.game.name)}</strong><br>${V.cash(loaded.game.cash)} · ${TIERS[loaded.game.tier].name}</p><p>Der aktuelle automatische Stand wird ersetzt. Die verstrichene Zeit wird anschließend nachgerechnet.</p>`,async()=>{if(game&&running)safeSave();ui.tab='overview';await resume(loaded.game);},'Importieren');
   }catch(error){toast(error.message,true);}
 });
 

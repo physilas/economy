@@ -5,6 +5,7 @@ import {createCampaign,normalizeCampaign,settleProgramme} from './campaign.mjs';
 export const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const sum = obj => Object.values(obj).reduce((a, b) => a + b, 0);
 const finite = (n, fallback = 0, max = 1e15) => typeof n === 'number' && Number.isFinite(n) ? clamp(n, 0, max) : fallback;
+const moneyValue = (n, fallback = 0) => finite(n, fallback, 1e100);
 const empty = keys => Object.fromEntries(Object.keys(keys).map(k => [k, 0]));
 const fail = message => ({ ok: false, message });
 const ok = (message, extra = {}) => ({ ok: true, message, ...extra });
@@ -282,7 +283,7 @@ function productionContext(s, offline) {
         wages:own.active*b.wage*(1+own.level*.08)*policy.wage/HOUR };
     }),
   };
-  refreshProfitGuard(s,context);return context;
+  return context;
 }
 
 function refreshProfitGuard(s,context){
@@ -841,6 +842,7 @@ export function advance(s, now = Date.now(), options = {}) {
   for (let i = 0; i < steps; i++) {
     manageTreasury(s);
     autoTrade(s,context);
+    refreshProfitGuard(s,context);
     produce(s, STEP, context);
     accrueFinance(s, STEP);
     autoTrade(s,context);
@@ -851,7 +853,7 @@ export function advance(s, now = Date.now(), options = {}) {
     const programme=settleProgramme(s);
     if(programme){log(s,programme,'milestone');context=productionContext(s,!!options.offline);}
     manageTreasury(s,true);
-    if(s.elapsed%5===0){marketTick(s,5/HOUR);refreshProfitGuard(s,context);}
+    if(s.elapsed%5===0)marketTick(s,5/HOUR);
     if (s.elapsed % HOUR === 0) {hourly(s);context=productionContext(s,!!options.offline);}
     if (options.onProgress && i % 3600 === 0) options.onProgress(i / steps);
   }
@@ -871,16 +873,17 @@ export function validateGame(raw, now = Date.now()) {
   const s = createGame(typeof raw.name === 'string' ? raw.name : 'Mein Unternehmen', now);
   s.created = finite(raw.created, now, now); s.lastUpdate = finite(raw.lastUpdate, now, now + 7 * 86400000);
   s.seed = finite(raw.seed, 1, 4294967295) >>> 0; s.elapsed = Math.floor(finite(raw.elapsed, 0, 1e10) / STEP) * STEP;
-  for (const key of ['cash', 'points', 'debt','emergencyNext']) s[key] = finite(raw[key]);
+  for (const key of ['cash', 'points', 'debt']) s[key] = moneyValue(raw[key]);
+  s.emergencyNext=finite(raw.emergencyNext);
   s.tier = Math.floor(finite(raw.tier, 0, TIERS.length-1)); s.legacy = Math.floor(finite(raw.legacy, 0, 10000)); s.prestigeCount = Math.floor(finite(raw.prestigeCount, 0, 10000));
   s.reputation = finite(raw.reputation, 50, 100); s.nextId = Math.max(1, Math.floor(finite(raw.nextId, 1, 1e12)));
   s.policy = Object.hasOwn(POLICIES, raw.policy) ? raw.policy : 'balanced'; s.priority = raw.priority === 'advanced' ? 'advanced' : 'balanced';
   s.profitGuard=raw.profitGuard===true;
   for (const id of Object.keys(RESEARCH)) s.research[id] = Math.floor(finite(raw.research?.[id], 0, RESEARCH[id].max));
-  for (const id of Object.keys(INFRA)) { s.infra[id] = Math.floor(finite(raw.infra?.[id], 0, 10000)); s.infraBook[id] = finite(raw.infraBook?.[id]); }
+  for (const id of Object.keys(INFRA)) { s.infra[id] = Math.floor(finite(raw.infra?.[id], 0, 10000)); s.infraBook[id] = moneyValue(raw.infraBook?.[id]); }
   for (const id of Object.keys(BUILDINGS)) {
     const r = raw.buildings[id] || {}, count = Math.floor(finite(r.count, 0, 10000));
-    s.buildings[id] = { count, active: Math.floor(finite(r.active, count, count)), level: Math.floor(finite(r.level, 0, 5)), book: finite(r.book) };
+    s.buildings[id] = { count, active: Math.floor(finite(r.active, count, count)), level: Math.floor(finite(r.level, 0, 5)), book: moneyValue(r.book) };
   }
   for (const id of Object.keys(RESOURCES)) {
     s.inventory[id] = finite(raw.inventory[id], 0, 1e10);
@@ -893,30 +896,35 @@ export function validateGame(raw, now = Date.now()) {
   }
   for (const [id, d] of Object.entries(STOCKS)) {
     const p = raw.stocks?.[id] || {};
-    s.stocks[id] = { price: Math.max(0.01, finite(p.price, d.base, d.base * 12)), previous: finite(p.previous, d.base), quantity: Math.floor(finite(p.quantity, 0, 1e10)), basis: finite(p.basis), history: cleanHistory(p.history, d.base),drip:p.drip===true,reserve:finite(p.reserve) };
+    s.stocks[id] = { price: Math.max(0.01, finite(p.price, d.base, d.base * 12)), previous: finite(p.previous, d.base), quantity: Math.floor(finite(p.quantity, 0, 1e100)), basis: moneyValue(p.basis), history: cleanHistory(p.history, d.base),drip:p.drip===true,reserve:moneyValue(p.reserve) };
   }
   for(const id of Object.keys(PROPERTIES)){
     const p=raw.properties?.[id]||{};
-    s.properties[id]={count:Math.floor(finite(p.count,0,100000)),basis:finite(p.basis),index:clamp(finite(p.index,1),.45,2.5),occupancy:clamp(finite(p.occupancy,.9),.4,.99),history:cleanHistory(p.history,1)};
+    s.properties[id]={count:Math.floor(finite(p.count,0,100000)),basis:moneyValue(p.basis),index:clamp(finite(p.index,1),.45,2.5),occupancy:clamp(finite(p.occupancy,.9),.4,.99),history:cleanHistory(p.history,1)};
   }
-  s.options=cleanArray(raw.options,20).filter(o=>o&&Object.hasOwn(RESOURCES,o.resource)&&['put','call'].includes(o.type)).map(o=>({id:finite(o.id),resource:o.resource,type:o.type,quantity:Math.max(1,Math.floor(finite(o.quantity,1,10000))),strike:Math.max(.001,finite(o.strike,1,1e9)),premium:finite(o.premium),volatility:clamp(finite(o.volatility,.085),.01,.5),start:finite(o.start),end:finite(o.end)}));
+  s.options=cleanArray(raw.options,20).filter(o=>o&&Object.hasOwn(RESOURCES,o.resource)&&['put','call'].includes(o.type)).map(o=>({id:finite(o.id),resource:o.resource,type:o.type,quantity:Math.max(1,Math.floor(finite(o.quantity,1,10000))),strike:Math.max(.001,finite(o.strike,1,1e9)),premium:moneyValue(o.premium),volatility:clamp(finite(o.volatility,.085),.01,.5),start:finite(o.start),end:finite(o.end)}));
   s.savingsPlans=cleanArray(raw.savingsPlans,6).filter(p=>p&&Object.hasOwn(STOCKS,p.stock)).map(p=>({id:finite(p.id),stock:p.stock,budget:finite(p.budget,100,1e12),period:[1,5,10].includes(p.period)?p.period:1,next:finite(p.next,s.elapsed+DAY),executions:finite(p.executions),skipped:finite(p.skipped)}));
   if(raw.treasury){const t=raw.treasury;s.treasury={enabled:t.enabled===true,floor:Math.max(50,finite(t.floor,150,1e12)),target:Math.max(50,finite(t.target,600,1e12)),bank:Object.hasOwn(BANKS,t.bank)?t.bank:'reserve'};s.treasury.target=Math.max(s.treasury.floor,s.treasury.target);}
-  for (const id of Object.keys(BANKS)) s.banks[id] = finite(raw.banks?.[id]);
-  s.bonds = cleanArray(raw.bonds, 30).filter(b => b && (b.type === 'fixed' || Object.hasOwn(BONDS, b.type))).map(b => ({ id: finite(b.id), type: b.type, principal: finite(b.principal), start: finite(b.start), end: finite(b.end), rate: finite(b.rate, 0.001, 0.01), days: finite(b.days, 20, 60) }));
-  s.ventures = cleanArray(raw.ventures, 12).filter(v => v && Object.hasOwn(VENTURES, v.type)).map(v => ({ id: finite(v.id), type: v.type, principal: finite(v.principal), start: finite(v.start), end: finite(v.end) }));
-  s.loans = cleanArray(raw.loans, 5).filter(l => l && typeof l === 'object').map(l => ({ id: finite(l.id), principal: finite(l.principal), original: finite(l.original), rate: finite(l.rate, 0.004, 0.02), nextPayment: finite(l.nextPayment), payments: Math.floor(finite(l.payments, 10, 10)) }));
+  for (const id of Object.keys(BANKS)) s.banks[id] = moneyValue(raw.banks?.[id]);
+  s.bonds = cleanArray(raw.bonds, 30).filter(b => b && (b.type === 'fixed' || Object.hasOwn(BONDS, b.type))).map(b => {
+    const days=b.type==='fixed'?([10,20,60].includes(b.days)?b.days:20):BONDS[b.type].days;
+    const start=finite(b.start,0,1e12);
+    // A saved maturity cannot turn a short fixed product into unbounded compounding.
+    return {id:finite(b.id),type:b.type,principal:moneyValue(b.principal),start,end:start+days*DAY,rate:finite(b.rate,.001,.01),...(b.type==='fixed'?{days}:b.days!==undefined?{days:finite(b.days,20,60)}:{})};
+  });
+  s.ventures = cleanArray(raw.ventures, 12).filter(v => v && Object.hasOwn(VENTURES, v.type)).map(v => ({ id: finite(v.id), type: v.type, principal: moneyValue(v.principal), start: finite(v.start), end: finite(v.end) }));
+  s.loans = cleanArray(raw.loans, 5).filter(l => l && typeof l === 'object').map(l => ({ id: finite(l.id), principal: moneyValue(l.principal), original: moneyValue(l.original), rate: finite(l.rate, 0.004, 0.02), nextPayment: finite(l.nextPayment), payments: Math.floor(finite(l.payments, 10, 10)) }));
   s.orders = cleanArray(raw.orders, 20).filter(o => o && Object.hasOwn(RESOURCES, o.resource) && ['buy', 'sell'].includes(o.side)).map(o => ({ id: finite(o.id), resource: o.resource, side: o.side, quantity: Math.max(1, Math.floor(finite(o.quantity, 1, 1e6))), limit: Math.max(0.001, finite(o.limit, 1, 1e9)) }));
-  const cleanContract = c => ({ id: finite(c.id), resource: c.resource, quantity: Math.max(1, finite(c.quantity, 1, 1e6)), reward: finite(c.reward), duration: finite(c.duration, DAY, 10 * DAY), ...(typeof c.end === 'number' ? { end: finite(c.end, s.elapsed + DAY) } : {}), premium: finite(c.premium, 1.2, 2) });
+  const cleanContract = c => ({ id: finite(c.id), resource: c.resource, quantity: Math.max(1, finite(c.quantity, 1, 1e6)), reward: moneyValue(c.reward), duration: finite(c.duration, DAY, 10 * DAY), ...(typeof c.end === 'number' ? { end: finite(c.end, s.elapsed + DAY) } : {}), premium: finite(c.premium, 1.2, 2) });
   s.contracts = cleanArray(raw.contracts, 3).filter(c => c && Object.hasOwn(RESOURCES, c.resource)).map(cleanContract);
   s.board = cleanArray(raw.board, 3).filter(c => c && Object.hasOwn(RESOURCES, c.resource)).map(cleanContract);
   s.achievements = cleanArray(raw.achievements, 100).filter(id => ACHIEVEMENTS.some(a => a.id === id));
   s.journal = cleanArray(raw.journal, 100).filter(j => j && typeof j.text === 'string').map(j => ({ id: finite(j.id), at: finite(j.at), text: j.text.slice(0, 500), type: typeof j.type === 'string' ? j.type.slice(0, 20) : 'info' }));
   if (raw.event && EVENTS.some(e => e.name === raw.event.name)) s.event = { ...EVENTS.find(e => e.name === raw.event.name), end: finite(raw.event.end, s.elapsed) };
   if (raw.economy) s.economy = { cycle: clamp(finite(raw.economy.cycle, 1), 0.5, 2), rate: clamp(finite(raw.economy.rate, 0.001), 0.0004, 0.0018), inflation: finite(raw.economy.inflation, 2, 10), phase: ['Stabil', 'Aufschwung', 'Rezession'].includes(raw.economy.phase) ? raw.economy.phase : 'Stabil' };
-  for (const key of Object.keys(s.stats)) { if (key !== 'history') s.stats[key] = typeof raw.stats[key] === 'number' && Number.isFinite(raw.stats[key]) ? clamp(raw.stats[key], ['lastProfit','optionPnl'].includes(key) ? -1e15 : 0, 1e15) : s.stats[key]; }
-  s.stats.history = cleanArray(raw.stats.history, 96).filter(h => h && Number.isFinite(h.wealth) && Number.isFinite(h.profit)).map(h => ({ at: finite(h.at), wealth: h.wealth, profit: h.profit }));
-  for (const ledger of ['hourLedger', 'dayLedger']) s[ledger] = { revenue: finite(raw[ledger]?.revenue), costs: finite(raw[ledger]?.costs) };
+  for (const key of Object.keys(s.stats)) { if (key !== 'history') s.stats[key] = typeof raw.stats[key] === 'number' && Number.isFinite(raw.stats[key]) ? clamp(raw.stats[key], ['lastProfit','optionPnl'].includes(key) ? -1e100 : 0, 1e100) : s.stats[key]; }
+  s.stats.history = cleanArray(raw.stats.history, 96).filter(h => h && Number.isFinite(h.wealth) && Number.isFinite(h.profit)).map(h => ({ at: finite(h.at), wealth: clamp(h.wealth,-1e100,1e100), profit: clamp(h.profit,-1e100,1e100) }));
+  for (const ledger of ['hourLedger', 'dayLedger']) s[ledger] = { revenue: moneyValue(raw[ledger]?.revenue), costs: moneyValue(raw[ledger]?.costs) };
   s.tutorial = raw.tutorial !== false;
   s.campaign=normalizeCampaign(raw.campaign,s.elapsed,s.stats.peak);
   s.campaign.unlocked ||= s.tier>=3;

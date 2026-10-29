@@ -45,6 +45,12 @@ export function load(slot = 'auto', storage = localStorage, now = Date.now()) {
   return null;
 }
 
+// Simulation timestamps do not change for actions within the same second.
+// Continuing a company must therefore use the current autosave even on a tie.
+export function loadCurrent(fallback,storage=localStorage,now=Date.now()){
+  return load('auto',storage,now)?.game||fallback;
+}
+
 export function listSaves(storage = localStorage) {
   return ['auto', ...SLOTS].map(slot => {
     try {

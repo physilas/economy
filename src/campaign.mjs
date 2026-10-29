@@ -1,5 +1,5 @@
 import {PROGRAMMES,PROGRAMME_CHOICES,RESOURCES} from './data.mjs';
-const numeric=(n,fallback=0,max=1e15)=>typeof n==='number'&&Number.isFinite(n)?Math.max(0,Math.min(max,n)):fallback;
+const numeric=(n,fallback=0,max=1e100)=>typeof n==='number'&&Number.isFinite(n)?Math.max(0,Math.min(max,n)):fallback;
 const result=(ok,message)=>({ok,message});
 export function createCampaign(age=0,peak=0){return {age,peak,unlocked:false,completed:[],active:null,bonuses:{production:0,finance:0,logistics:0}};}
 export function normalizeCampaign(raw,age=0,peak=0){
