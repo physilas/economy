@@ -8,6 +8,11 @@ const START = 1800000000000;
 function game() { const s = createGame('Test', START, 42); s.achievements = ACHIEVEMENTS.map(a => a.id); return s; }
 function near(a, b, tolerance = 0.00001) { assert.ok(Math.abs(a - b) < tolerance, `${a} ≈ ${b}`); }
 
+test('initial discovery progress includes the value of the starting material reserves',()=>{
+  const s=createGame('Start',START,42);
+  near(s.stats.peak,assets(s).total);assert.ok(s.stats.peak>s.cash);assert.equal(s.cash,1200);
+});
+
 test('production and offline catchup are deterministic across reload intervals', () => {
   const a = game(); build(a, 'lumber', 2); a.automation.wood = { mode: 'sell', low: 0, high: 10 };
   const b = structuredClone(a);

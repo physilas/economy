@@ -33,6 +33,7 @@ export function createGame(name = 'Mein Unternehmen', now = Date.now(), seed = (
     tutorial: true, settings: { confirmLarge: true },
   };
   updateReports(s,true);
+  s.stats.peak=assets(s).total;
   log(s, 'Willkommen bei NULL. Dein Unternehmen beginnt mit 1.200 € und einer kleinen Materialreserve.', 'milestone');
   refreshBoard(s);
   return s;
