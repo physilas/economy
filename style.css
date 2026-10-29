@@ -30,6 +30,11 @@ h1 { font-size:32px; line-height:1.15; }
 h2 { font-size:23px; line-height:1.25; }
 h3 { font-size:16px; letter-spacing:-.02em; }
 h4 { font-size:14px; }
+.info-button { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; min-height:24px; padding:4px; border:0; border-radius:50%; color:var(--muted); vertical-align:middle; flex-shrink:0; }
+.info-button .icon { width:16px; height:16px; }
+.info-button:hover:not(:disabled) { color:var(--text); background:var(--line); }
+.eyebrow .info-button { margin-top:-3px; margin-bottom:-2px; }
+.details-copy { display:none; }
 p { color:var(--muted); }
 small { font-size:11px; }
 .icon { width:21px; height:21px; flex-shrink:0; vertical-align:middle; }
@@ -189,9 +194,15 @@ small { font-size:11px; }
 .bank-card .bank-value { font-size:30px; margin:16px 0 8px; }
 .bank-card .rate { font-size:11px; color:var(--muted); }
 .bank-card .rate strong { color:var(--text); font-weight:400; }
-.bank-card .bank-actions { display:flex; gap:8px; margin-top:22px; }
+.bank-actions { display:flex; gap:8px; margin-top:22px; }
 .bank-actions button { flex:1; font-size:12px; }
-.fine-print { font-size:10px; color:var(--dim); line-height:1.7; margin-top:16px; }
+.fine-print { display:none; font-size:10px; color:var(--dim); line-height:1.7; margin-top:16px; }
+.guide .fine-print,.save-slot .fine-print { display:block; }
+.plan-table { border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.plan-row { display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr 1fr 65px; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid var(--line); font-size:12px; }
+.plan-row:last-child { border-bottom:0; }
+.plan-heading { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+.plan-row .icon { width:17px; height:17px; }
 .financial-card { display:grid; gap:12px; }
 .financial-card .icon { width:26px; height:26px; }
 .financial-card p { font-size:11px; }
@@ -295,6 +306,11 @@ dialog p { margin-top:14px; font-size:12px; line-height:1.8; }
 @media (min-width:1500px) { .menu-orbit { display:block; } }
 @media (max-width:1050px) { .shell { padding-left:28px; padding-right:28px; } .desktop-nav { gap:19px; } .desktop-nav .icon { display:none; } .market-head,.market-row { grid-template-columns:1fr .7fr 75px .7fr 140px; gap:10px; } .spark { width:75px; } .stock-row { grid-template-columns:1fr 75px .8fr .7fr 130px; gap:10px; } .stock-row .market-actions button { padding:8px; } }
 @media (max-width:780px) {
+  .plan-row { grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; padding:16px; }
+  .plan-heading { display:none; }
+  .plan-row > span:first-child { grid-column:1 / 4; }
+  .plan-row > button { grid-row:1; grid-column:4; }
+  .plan-row > span[data-label]:before { content:attr(data-label); display:block; font-family:-apple-system,BlinkMacSystemFont,sans-serif; letter-spacing:0; font-size:9px; color:var(--dim); margin-bottom:4px; }
   .shell { padding:0 20px calc(104px + env(safe-area-inset-bottom)); }
   .topbar { min-height:78px; padding-top:calc(8px + env(safe-area-inset-top)); gap:12px; margin-bottom:28px; }
   .brand { font-size:16px; gap:6px; }

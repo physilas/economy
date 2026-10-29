@@ -3,11 +3,12 @@ import * as V from './views.mjs';
 import * as Store from './storage.mjs';
 import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, BONDS, VENTURES, DAY, OFFLINE_LIMIT } from './data.mjs';
 import { icon, mark } from './icons.mjs';
+import {help} from './help.mjs';
 
 const app = document.querySelector('#app'), dialog = document.querySelector('#dialog');
 const leaseKey = 'null-economy:lease', sessionId = globalThis.crypto?.randomUUID?.() || String(Math.random());
 let game = null, running = false, busy = false, pending = null, toastTimer, lastSaveAttempt = 0, worker = null, registration = null, installPrompt = null, queuedDiscovery = null;
-const ui = { screen:'menu', tab:'overview', productionTab:'business', financeTab:'bank', buildFilter:'all', marketFilter:'all', qty:1, amount:100, fixedDays:20, open:new Set(), offlineReady:false, updateReady:false, lastSaved:0, saveError:'', previousScreen:'menu' };
+const ui = { screen:'menu', tab:'overview', productionTab:'business', financeTab:'bank', buildFilter:'all', marketFilter:'all', qty:1, amount:100, fixedDays:20,optionResource:'wood',optionType:'put',optionDays:3,planStock:'sylva',planPeriod:1, open:new Set(), offlineReady:false, updateReady:false, lastSaved:0, saveError:'', previousScreen:'menu' };
 
 function toast(message, error = false) {
   const node = document.querySelector('#toast'); node.textContent = message; node.className = `visible${error ? ' error' : ''}`;
@@ -173,6 +174,7 @@ async function action(button) {
   if(action==='tab'){go(id);return;}
   if(action==='saves'||action==='guide'){go(action);return;}
   if(action==='install'){installHelp();return;}
+  if(action==='info'){const item=help(id,game);openDialog(item.title,item.body);return;}
   if(action==='qty'){ui.qty=Number(id);render();return;}
   if(action==='amount'){ui.amount=E.clamp(ui.amount+Number(id),1,1e14);render();return;}
   if(action==='expand'){ui.open.has(id)?ui.open.delete(id):ui.open.add(id);render();return;}
@@ -212,6 +214,22 @@ async function action(button) {
   if(action==='trade'){finish(E.trade(game,id,ui.qty,side),oldTier);return;}
   if(action==='policy'){game.policy=id;finish(Eresult('Unternehmensstrategie geändert.'));return;}
   if(action==='priority'){game.priority=id;finish(Eresult('Produktionsreihenfolge geändert.'));return;}
+  if(action==='setupSupplies'){
+    openDialog('Vorprodukte bevorraten?','<p>Die benötigten Vorprodukte werden am Markt für etwa zwei Spielstunden eingekauft. Bereits vorhandene Verkaufseinstellungen bleiben mit ausreichend Abstand erhalten. Die Einkäufe kosten laufend Geld und nutzen deine freie Betriebskasse.</p>',()=>finish(E.setupSupplies(game,id)),'Einkauf einrichten');return;
+  }
+  if(action==='goResource'){ui.marketFilter='all';ui.open.add(`m-${id}`);go('market');return;}
+  if(action==='treasuryToggle'){finish(E.setTreasury(game,'enabled',!game.treasury.enabled));return;}
+  if(action==='treasuryStep'){finish(E.setTreasury(game,id,game.treasury[id]+Number(button.dataset.delta)));return;}
+  if(action==='drip'){finish(E.toggleDividendReinvestment(game,id));return;}
+  if(action==='createPlan'){finish(E.createSavingsPlan(game,ui.planStock,ui.amount,ui.planPeriod));return;}
+  if(action==='cancelPlan'){finish(E.cancelSavingsPlan(game,Number(id)));return;}
+  if(action==='property'){finish(E.propertyTrade(game,id,ui.qty,side),oldTier);return;}
+  if(action==='emergency'){finish(E.emergencyAid(game));return;}
+  if(action==='buyOption'){
+    const q=E.optionQuote(game,ui.optionResource,ui.optionType,ui.qty,ui.optionDays),resource=ui.optionResource,type=ui.optionType,quantity=ui.qty,days=ui.optionDays;
+    openDialog('Eine Grenze für dein Risiko.',`<p>${quantity} Einheiten ${RESOURCES[resource].name}: ${type==='put'?'Schutz gegen fallende':'Schutz gegen steigende'} Preise. Laufzeit ${V.duration(days*DAY)} echt.</p><p>Prämie und maximaler Verlust: <strong>${V.money(q.premium,2)}</strong>. Abrechnung zum Außenmarktpreis, ohne Warenlieferung. Keine Nachschusspflicht.</p>`,()=>finish(E.buyOption(game,resource,type,quantity,days)),'Absicherung kaufen');return;
+  }
+  if(action==='sellOption'){finish(E.sellOption(game,Number(id)));return;}
   if(action==='autoStep'){
     const field=button.dataset.field,a=game.automation[id];a[field]=E.clamp(a[field]+Number(button.dataset.delta),0,1e9);
     if(a.low>a.high){if(field==='low')a.high=a.low;else a.low=a.high;}
@@ -265,8 +283,11 @@ document.addEventListener('change',event=>{
     if(key==='amount')ui.amount=Math.round(E.clamp(Number(node.value)||1,1,1e14));
     else if(key==='fixedDays')ui.fixedDays=Number(node.value);
     else if(key==='buildFilter')ui.buildFilter=node.value;
+    else if(['optionResource','optionType','planStock'].includes(key))ui[key]=node.value;
+    else if(['optionDays','planPeriod'].includes(key))ui[key]=Number(node.value);
     render();
   }
+  if(node.dataset.treasury&&game){const field=node.dataset.treasury;finish(E.setTreasury(game,field,field==='bank'?node.value:Number(node.value)));}
   if(node.dataset.auto&&game){
     const a=game.automation[node.dataset.auto],field=node.dataset.field;
     if(field==='mode')a.mode=node.value;else a[field]=Math.round(E.clamp(Number(node.value)||0,0,1e9));

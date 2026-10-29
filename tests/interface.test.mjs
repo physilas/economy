@@ -20,8 +20,8 @@ test('each tier reveals only discovered production and research',()=>{
   for(let tier=1;tier<7;tier++){
     const s=createGame('Test',0,42);s.tier=tier;
     const production=V.production(s,ui),research=V.researchView(s,ui);
-    for(const b of Object.values(BUILDINGS))assert.equal(production.includes(`<h3>${b.name}</h3>`),b.tier<=tier,`${b.name} tier ${tier}`);
-    for(const r of Object.values(RESEARCH))assert.equal(research.includes(`<h3>${r.name}</h3>`),r.tier<=tier,`${r.name} tier ${tier}`);
+    for(const [id,b] of Object.entries(BUILDINGS))assert.equal(production.includes(`data-id="building:${id}"`),b.tier<=tier,`${b.name} tier ${tier}`);
+    for(const [id,r] of Object.entries(RESEARCH))assert.equal(research.includes(`data-id="research:${id}"`),r.tier<=tier,`${r.name} tier ${tier}`);
   }
 });
 

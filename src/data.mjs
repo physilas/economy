@@ -95,7 +95,7 @@ export const STOCKS = {
   terra: { name: 'TERRA', full: 'Terra Lebensmittel', sector: 'food', base: 65, volatility: 0.015, dividend: 0.001, description: 'Defensive Grundversorgung.' },
   ferrum: { name: 'FERRUM', full: 'Ferrum Industrie', sector: 'industry', base: 120, volatility: 0.028, dividend: 0.0007, description: 'Industrie und Infrastruktur.' },
   forma: { name: 'FORMA', full: 'Forma Konsum', sector: 'consumer', base: 85, volatility: 0.022, dividend: 0.0009, description: 'Konsumgüter und Mobilität.' },
-  nova: { name: 'NOVA', full: 'Nova Technologies', sector: 'tech', base: 210, volatility: 0.045, dividend: 0.00025, description: 'Wachstum mit großen Schwankungen.' },
+  nova: { name: 'NOVA', full: 'Nova Technologies', sector: 'tech', base: 210, volatility: 0.045, dividend: 0.00025, description: 'Innovation mit großen Schwankungen.' },
   index: { name: 'NULL 5', full: 'Breiter Marktindex', sector: 'all', base: 100, volatility: 0.011, dividend: 0.00065, description: 'Gleichgewichteter Korb aller fünf Aktien.' },
 };
 
@@ -148,4 +148,11 @@ export const POLICIES = {
   growth: { name: 'Wachstum', output: 1.22, wage: 1.4, pollution: 1.3, description: '+22 % Produktion · +40 % Löhne · +30 % Belastung' },
   lean: { name: 'Sparbetrieb', output: 0.8, wage: 0.65, pollution: 0.8, description: '−20 % Produktion · −35 % Löhne · −20 % Belastung' },
   green: { name: 'Nachhaltig', output: 0.94, wage: 1.08, pollution: 0.45, description: '−6 % Produktion · +8 % Löhne · −55 % Belastung' },
+};
+
+export const PROPERTIES = {
+  apartments: { name: 'Vermietetes Wohnhaus', icon: 'building', tier: 2, cost: 22000, rent: 190, maintenance: 35, sector: 'consumer', description: 'Externe Vermietung. Stetige Mieten, konjunkturabhängiger Leerstand.' },
+  farmland: { name: 'Pachtland', icon: 'wheat', tier: 2, cost: 60000, rent: 430, maintenance: 30, sector: 'food', description: 'Langfristige Pacht. Geringere Rendite, stabilere Auslastung.' },
+  industrial: { name: 'Gewerbepark', icon: 'factory', tier: 3, cost: 125000, rent: 1120, maintenance: 180, sector: 'industry', description: 'Gewerbemieter reagieren stärker auf die Konjunktur.' },
+  datacenter: { name: 'Vermietetes Rechenzentrum', icon: 'cpu', tier: 4, cost: 950000, rent: 8500, maintenance: 1600, sector: 'tech', description: 'Technologiemieten mit hohen Betriebskosten und schwankenden Bewertungen.' },
 };
