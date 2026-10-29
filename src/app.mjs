@@ -4,6 +4,7 @@ import * as Store from './storage.mjs';
 import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, BONDS, VENTURES, DAY, OFFLINE_LIMIT, RELEASE } from './data.mjs';
 import { icon, mark } from './icons.mjs';
 import {help} from './help.mjs';
+import {previewBuilding} from './planning.mjs';
 
 const app = document.querySelector('#app'), dialog = document.querySelector('#dialog');
 const leaseKey = 'null-economy:lease', sessionId = globalThis.crypto?.randomUUID?.() || String(Math.random());
@@ -173,6 +174,14 @@ function orderDialog(id) {
   openDialog('Ein Preis. Eine Bedingung.',`<p>Limitauftrag für <strong>${RESOURCES[id].name}</strong>. Vollständige Ausführung zum Durchschnittspreis inklusive Gebühren.</p><div class="auto-form mt16"><div><label for="order-side">Richtung</label><select id="order-side"><option value="buy">Kaufen</option><option value="sell">Verkaufen</option></select></div><div><label for="order-quantity">Anzahl</label><input id="order-quantity" type="number" inputmode="numeric" min="1" max="1000000" value="${ui.qty}"></div><div><label for="order-limit">Limit je Stück (€)</label><input id="order-limit" type="number" inputmode="decimal" min="0.01" step="0.01" value="${p.toFixed(2)}"></div></div>`,()=>finish(E.placeOrder(game,id,document.querySelector('#order-side').value,Number(document.querySelector('#order-quantity').value),Number(document.querySelector('#order-limit').value))),'Auftrag anlegen');
 }
 
+function openBuildingPreview(id,quantity=ui.qty){
+  const plan=previewBuilding(game,id,quantity);
+  if(!plan){toast('Dieser Bauplan ist noch nicht verfügbar.',true);return;}
+  const build=plan.affordable?()=>{const oldTier=game.tier;finish(E.build(game,id,quantity),oldTier);}:null;
+  openDialog(`Bauplan: ${BUILDINGS[id].name}`,V.buildingPreview(plan),build,`${quantity}× bauen`);
+  dialog.dataset.previewQuantity=String(quantity);
+}
+
 function installHelp() {
   if(installPrompt) { installPrompt.prompt(); installPrompt=null;return; }
   openDialog('Dein Spiel. In deiner Tasche.',`<p>Öffne NULL auf dem iPhone in <strong>Safari</strong>. Warte, bis oben <strong>„Offline bereit“</strong> steht.</p><p>Tippe dann auf <strong>Teilen → Zum Home-Bildschirm → Hinzufügen</strong>. Öffne das neue NULL-Symbol einmal online und teste anschließend im Flugmodus.</p><p>${ui.offlineReady?'Die Dateien dieser Sitzung sind bereits für offline gespeichert.':'Der Offline-Cache ist in dieser Sitzung noch nicht bereit. Öffne die Seite über HTTPS und lasse sie kurz geöffnet.'}</p><p>Safari und die installierte App können unterschiedliche Spielstände verwenden. Übertrage deinen Stand bei Bedarf über <strong>Spielstände → Exportieren / Importieren</strong>.</p>${registration?.waiting?'<button class="wfull mt16" data-action="update">Update jetzt installieren</button>':''}`);
@@ -231,6 +240,12 @@ async function action(button) {
   if(action==='rename'){openDialog('Ein Name für deine Idee.',`<label class="mt16" for="rename">Unternehmensname</label><input id="rename" type="text" value="${V.esc(game.name)}" maxlength="36">`,()=>{game.name=document.querySelector('#rename').value.trim().slice(0,36)||'Mein Unternehmen';finish(Eresult('Unternehmen umbenannt.'));},'Speichern');return;}
   if(action==='dismissTutorial'){game.tutorial=false;finish(Eresult('Die Einführung ist in der Spielanleitung weiter verfügbar.'));return;}
   if(action==='goLab'){ui.productionTab='infra';go('production');return;}
+  if(action==='preview'){openBuildingPreview(id);return;}
+  if(action==='previewQuantity'){
+    const delta=Number(button.dataset.delta),quantity=E.clamp(Number(dialog.dataset.previewQuantity)+delta,1,100);
+    openBuildingPreview(id,quantity);
+    dialog.querySelector(`button[data-action="previewQuantity"][data-delta="${delta}"]:not(:disabled)`)?.focus({preventScroll:true});return;
+  }
   if(action==='build'||action==='buildInfra'){finish(E.build(game,id,ui.qty,action==='buildInfra'),oldTier);return;}
   if(action==='demolish'||action==='demolishInfra'){
     const infra=action==='demolishInfra',name=(infra?INFRA:BUILDINGS)[id].name;

@@ -35,6 +35,8 @@ Browserdaten sind lokal: Wer sie löscht, verliert auch lokale Spielstände. **E
 
 Produktionsketten benötigen Vorprodukte, Personal, Energie, Transport, Lagerplatz und Betriebskapital. Skaleneffekte konkurrieren mit steigenden Baukosten, Knappheit und Umweltkosten. Eine Mengenplanung macht Zulieferdefizite sichtbar. Ein optionaler Margenwächter pausiert offensichtliche Verlustketten und startet sie bei erholten Preisen wieder. Strategien, Ausbaustufen und Forschung verändern die Unternehmensleistung.
 
+**Bau prüfen** öffnet bei jedem bekannten Betrieb eine Vorschau für 1 bis 100 zusätzliche Einheiten. Sie zeigt Baukosten, verbleibende Liquidität, Vorproduktbedarf, technische Auslastung, zusätzliche Infrastruktur und einen Marktvergleich der laufenden Kosten und Erlöse. Vorhandene Zulieferer werden berücksichtigt. Die Vorschau verändert keinen Spielstand und kennt keine zukünftigen Kurse; Rechenannahmen stehen hinter dem Info-Symbol im Dialog. Noch nicht entdeckte Inhalte bleiben verborgen.
+
 Der Markt reagiert auf eigene Handelsmengen, externe Nachfrage, Konjunktur und Ereignisse. Aufträge werden mit einem integrierten marginalen Preiseffekt abgerechnet; Aufteilen eines Auftrags erzeugt keinen kostenlosen Preisvorteil. Automatik und Limitaufträge handeln nach den gesetzten Regeln.
 
 Aktien sind mit Unternehmensfundamentaldaten verknüpft. Verkaufspreise, Inputkosten und Konjunktur bestimmen Umsatz und Marge. Alle fünf Spieltage erscheinen Geschäftsberichte. KGV, Gewinn je Anteil, Dividenden und Modell-Ertragswert erlauben begründete Vergleiche. Kurse schwanken zusätzlich; der Modellwert garantiert keinen Gewinn.

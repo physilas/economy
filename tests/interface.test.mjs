@@ -53,6 +53,11 @@ test('recipe cards scale inputs and outputs with the same production bonuses',()
   assert.ok(card.includes('12,7 Holz'));assert.ok(card.includes('7,6 Bretter'));
 });
 
+test('large planning costs stay readable and bounded on small screens',()=>{
+  assert.equal(V.compact(1e12),'1,00 Bio.');assert.equal(V.compact(1e66),'1,00 × 10^66');
+  assert.ok(V.compact(-1e100).length<25);assert.equal(V.compact(Infinity),'∞');assert.equal(V.compact(NaN),'—');
+});
+
 test('every precached PWA file exists and manifest uses relative paths',async()=>{
   const worker=await readFile(new URL('../sw.js',import.meta.url),'utf8');
   const paths=worker.match(/const FILES = \[(.*?)\];/s)[1].match(/'[^']+'/g).map(p=>p.slice(1,-1));

@@ -294,6 +294,20 @@ dialog h2 { font-size:23px; padding-right:20px; }
 dialog p { margin-top:14px; font-size:12px; line-height:1.8; }
 .help-more { margin-top:20px; padding-top:16px; border-top:1px solid var(--line); }
 .help-more summary { cursor:pointer; color:var(--muted); font-size:12px; min-height:30px; }
+.preview-section { border-top:1px solid var(--line); padding:16px 0 4px; margin-top:14px; font-size:12px; }
+.preview-section > summary { cursor:pointer; min-height:28px; color:var(--muted); }
+.preview-section > summary .icon { width:15px; height:15px; margin:0 4px 2px 0; }
+.preview-section p { font-size:11px; }
+.preview-supply { padding:12px 0; border-bottom:1px solid var(--line); }
+.preview-supply:last-child { border:0; }
+.preview-supply strong { font-size:12px; font-weight:500; }
+.preview-supply p { margin-top:5px; overflow-wrap:anywhere; }
+.preview-supply > .between { align-items:flex-start; }
+.preview-supply .number { font-size:11px; }
+.preview-recipe .recipe { margin:12px 0; }
+dialog .cash-control { flex-direction:column; align-items:stretch; gap:12px; }
+dialog .cash-buttons { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); }
+dialog .cash-buttons button { padding:6px 4px; font-size:11px; }
 .dialog-close { position:absolute; top:14px; right:14px; border:0; width:34px; min-height:34px; padding:6px; color:var(--muted); }
 .dialog-close .icon { width:18px; height:18px; }
 .dialog-actions { margin-top:26px; display:flex; gap:10px; justify-content:flex-end; }
