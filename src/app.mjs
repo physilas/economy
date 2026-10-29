@@ -7,7 +7,7 @@ import { icon, mark } from './icons.mjs';
 const app = document.querySelector('#app'), dialog = document.querySelector('#dialog');
 const leaseKey = 'null-economy:lease', sessionId = globalThis.crypto?.randomUUID?.() || String(Math.random());
 let game = null, running = false, busy = false, pending = null, toastTimer, lastSaveAttempt = 0, worker = null, registration = null, installPrompt = null;
-const ui = { screen:'menu', tab:'overview', productionTab:'business', financeTab:'bank', buildFilter:'all', marketFilter:'all', qty:1, amount:100, fixedDays:20, open:new Set(), offlineReady:false, lastSaved:0, saveError:'', previousScreen:'menu' };
+const ui = { screen:'menu', tab:'overview', productionTab:'business', financeTab:'bank', buildFilter:'all', marketFilter:'all', qty:1, amount:100, fixedDays:20, open:new Set(), offlineReady:false, updateReady:false, lastSaved:0, saveError:'', previousScreen:'menu' };
 
 function toast(message, error = false) {
   const node = document.querySelector('#toast'); node.textContent = message; node.className = `visible${error ? ' error' : ''}`;
@@ -176,7 +176,10 @@ async function action(button) {
   if(action==='expand'){ui.open.has(id)?ui.open.delete(id):ui.open.add(id);render();return;}
   if(['productionTab','financeTab','marketFilter'].includes(action)){ui[action]=id;render();return;}
   if(action==='update'){
-    safeSave();if(registration?.waiting)registration.waiting.postMessage({type:'SKIP_WAITING'});return;
+    if(!registration?.waiting){toast('Du verwendest bereits die aktuelle Version.');return;}
+    if(game&&!safeSave()){openDialog('Spielstand zuerst sichern.','<p>Der lokale Speicher ist gerade nicht verfügbar. Exportiere deinen Spielstand unter „Spielstände“, bevor du das Update erneut startest.</p>');return;}
+    running=false;button.disabled=true;button.textContent='Wird geladen …';
+    registration.waiting.postMessage({type:'SKIP_WAITING'});return;
   }
   if(action==='import'){document.querySelector('#import-file').click();return;}
   if(action==='loadSlot'){
@@ -289,7 +292,7 @@ setInterval(()=>{
 
 document.addEventListener('visibilitychange',async()=>{
   if(document.hidden){if(running&&!busy){E.advance(game,Date.now());safeSave();}}
-  else if(running&&!busy){await resume(game);}
+  else if(running&&!busy){checkUpdate();await resume(game);}
 });
 window.addEventListener('pagehide',()=>{if(running&&!busy)safeSave();releaseLease();});
 window.addEventListener('storage',event=>{
@@ -303,15 +306,19 @@ async function setupOffline() {
   if(!('serviceWorker' in navigator)||!window.isSecureContext)return;
   const hadController=!!navigator.serviceWorker.controller;
   try {
-    registration=await navigator.serviceWorker.register(new URL('../sw.js',import.meta.url),{scope:new URL('../',import.meta.url).pathname});
+    registration=await navigator.serviceWorker.register(new URL('../sw.js',import.meta.url),{scope:new URL('../',import.meta.url).pathname,updateViaCache:'none'});
     await navigator.serviceWorker.ready;ui.offlineReady=true;
     if(!busy)render();
     let refreshing=false;
     navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!hadController||refreshing)return;refreshing=true;if(game)safeSave();window.location.reload();});
-    const offer=()=>{if(registration.waiting)toast('Eine neue Version ist bereit. Installiere sie über „iPhone-Installation“.');};
-    offer();registration.addEventListener('updatefound',()=>{const installing=registration.installing;installing?.addEventListener('statechange',()=>{if(installing.state==='installed'&&navigator.serviceWorker.controller)offer();});});
+    const offer=()=>{if(registration.waiting){ui.updateReady=true;if(!busy&&!dialog.open)render();toast('Neue Version bereit. Tippe auf „Update laden“.');}};
+    offer();registration.addEventListener('updatefound',()=>{const installing=registration.installing;installing?.addEventListener('statechange',()=>{if(installing.state==='installed'&&navigator.serviceWorker.controller)setTimeout(offer,0);});});
+    checkUpdate();
   }catch(error){console.warn('Offline installation failed',error);toast('Offline-Dateien konnten noch nicht gespeichert werden. Bitte später online erneut öffnen.',true);}
 }
+function checkUpdate(){if(registration&&navigator.onLine)registration.update().catch(()=>{});}
+window.addEventListener('online',checkUpdate);
+setInterval(checkUpdate,15*60*1000);
 
 try {
   const saved=Store.load();if(saved){game=saved.game;ui.lastSaved=saved.saved;if(saved.recovered)toast('Automatische Sicherungskopie wiederhergestellt.');}

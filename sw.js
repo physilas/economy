@@ -1,10 +1,10 @@
 /* All paths are relative to this worker, including on GitHub project Pages. */
-const VERSION = 'null-v1.0.0';
+const VERSION = 'null-v1.0.1';
 const FILES = ['./','./index.html','./style.css','./manifest.webmanifest','./src/app.mjs','./src/views.mjs','./src/icons.mjs','./src/data.mjs','./src/engine.mjs','./src/storage.mjs','./src/worker.mjs','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
 const absolute = path => new URL(path,self.location.href).href;
 
 self.addEventListener('install',event=>{
-  event.waitUntil(caches.open(VERSION).then(cache=>cache.addAll(FILES.map(absolute))));
+  event.waitUntil(caches.open(VERSION).then(cache=>cache.addAll(FILES.map(path=>new Request(absolute(path),{cache:'reload'})))));
 });
 self.addEventListener('activate',event=>{
   event.waitUntil((async()=>{
