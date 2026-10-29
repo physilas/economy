@@ -1,0 +1,12 @@
+{
+  "name": "null-economy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Eine minimalistische Offline-Wirtschaftssimulation",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check src/data.mjs && node --check src/engine.mjs && node --check src/storage.mjs && node --check src/app.mjs && node --check sw.js",
+    "dev": "python3 -m http.server 4173 --bind 127.0.0.1"
+  }
+}
