@@ -60,7 +60,7 @@ function develop(){
   for(const contract of [...s.board])if(s.inventory[contract.resource]>=contract.quantity){E.acceptContract(s,contract.id);E.fulfillContract(s,contract.id);}
   configure();
 }
-for(let minute=0;minute<35*1440;){
+for(let minute=0;minute<45*1440;){
   develop();const step=minute<1440?5:30;minute+=step;E.advance(s,minute*60000);
   if(s.tier>lastTier){milestones.push({day:Number((minute/1440).toFixed(2)),tier:s.tier,name:TIERS[s.tier].name});lastTier=s.tier;}
   assert.ok(Number.isFinite(E.assets(s).total)&&s.cash>=0);for(const q of Object.values(s.inventory))assert.ok(q>=0&&Number.isFinite(q));
@@ -69,4 +69,4 @@ for(let minute=0;minute<35*1440;){
 console.log(JSON.stringify({buildings:Object.fromEntries(Object.entries(s.buildings).filter(([,b])=>b.count).map(([id,b])=>[id,b.count])),capacity:E.capacity(s),milestones,equity:E.assets(s).total,completed:s.campaign.completed,research:s.points,active:s.campaign.active},null,2));
 assert.equal(s.tier,TIERS.length-1,'All discoveries must be reachable without injected resources.');
 assert.equal(s.campaign.completed.length,PROGRAMMES.length,'The complete long-term campaign must be reachable.');
-assert.ok(milestones.some(m=>m.day>=14),'Later discoveries should create new decisions beyond the first two weeks.');
+assert.ok(milestones.some(m=>m.day>=25),'Later discoveries should create new decisions beyond the first two weeks.');

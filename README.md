@@ -44,14 +44,14 @@ Aktien sind mit Unternehmensfundamentaldaten verknüpft. Verkaufspreise, Inputko
 <details>
 <summary>Weitere Systeme — mögliche Entdeckungen</summary>
 
-- 33 Ressourcen, 33 Produktionsbetriebe, elf Entwicklungsepochen und 13 Infrastrukturtypen.
+- 36 Ressourcen, 36 Produktionsbetriebe, zwölf Entwicklungsepochen und 13 Infrastrukturtypen.
 - Zwölf Forschungszweige mit mehreren Stufen; vier Unternehmensstrategien, Umweltsystem und Kapazitätsplanung.
 - Reservekonto, Tagesgeld, drei Festgeldlaufzeiten, Kontokorrent und amortisierende Investitionskredite.
 - Fünf Einzelaktien und ein Marktindex, Dividenden-Wiederanlage und regelmäßige Sparpläne.
 - Drei Anleiheklassen, vier riskante Beteiligungsarten und vier vermietete Immobilienarten.
 - Call- und Put-Absicherungen mit modellierten Prämien, fester Laufzeit und auf die Prämie begrenztem Verlust. Abrechnung zum Außenmarkt ohne direkt manipulierbaren eigenen Knappheitseffekt.
 - Liquiditätsmanager, Lieferverträge, Reputation, Konjunkturzyklen, Ereignisse und Meilensteine.
-- Acht aufeinanderfolgende Holdingprogramme mit jeweils drei wählbaren Schwerpunkten: Produktion, Finanzen oder Logistik. Einmalige Material- und Kapitalinvestitionen, feste echte Laufzeiten, dauerhafte Boni. Laufende und abgeschlossene Programme überleben spätere Neugründungen und Sanierungen.
+- Neun aufeinanderfolgende Holdingprogramme mit jeweils drei wählbaren Schwerpunkten: Produktion, Finanzen oder Logistik. Einmalige Material- und Kapitalinvestitionen, feste echte Laufzeiten, dauerhafte Boni. Laufende und abgeschlossene Programme überleben spätere Neugründungen und Sanierungen.
 - Dauerhafte Vermächtnispunkte für spätere Neugründungen.
 - Notaufträge und bei Überschuldung eine Sanierung als Ausweg. Eine Sanierung gibt Vermögenswerte ab, erhält aber Wissen und Entdeckungen.
 
@@ -75,6 +75,6 @@ Node.js 22 oder neuer wird für die Tests benötigt, Python nur für eine lokale
 
 Die Tests prüfen unter anderem deterministische Live-/Offline-Berechnung, Stundenerträge beim Sekundentakt, Konstruktion, Preiswirkung, unmögliche Rückverkaufsgewinne, Kredite, Zinsen, Steuern, Fälligkeiten, Optionsmathematik, Wiederanlage, Immobilien, Berichte, versteckte Freischaltungen, Schema-Validierung, beschädigte Sicherungen und eine simulierte Offline-Woche. GitHub Actions führt die Prüfungen bei jedem Push aus.
 
-Der zusätzliche Langzeittest beginnt mit dem normalen Startkonto und verwendet ausschließlich reguläre Spielaktionen. Ein einfacher Unternehmensmanager baut, schafft Kapazitäten, richtet Handel ein und forscht. Innerhalb von bis zu 14 simulierten echten Tagen müssen die ursprünglichen sieben Epochen und die erste Neugründung erreichbar sein. Es werden weder Geld noch Freischaltungen injiziert. Ein weiterer Test spielt 35 echte Tage nach: neue Epochen und sämtliche Holdingprogramme müssen mit regulären Aktionen erreichbar bleiben. Dabei werden auch neue Infrastruktur, Materialreserven, Schwerpunktwahl und Forschungsbudgets genutzt.
+Der zusätzliche Langzeittest beginnt mit dem normalen Startkonto und verwendet ausschließlich reguläre Spielaktionen. Ein einfacher Unternehmensmanager baut, schafft Kapazitäten, richtet Handel ein und forscht. Innerhalb von bis zu 14 simulierten echten Tagen müssen die ursprünglichen sieben Epochen und die erste Neugründung erreichbar sein. Es werden weder Geld noch Freischaltungen injiziert. Ein weiterer Test spielt 45 echte Tage nach: neue Epochen und sämtliche Holdingprogramme müssen mit regulären Aktionen erreichbar bleiben. Dabei werden auch neue Infrastruktur, Materialreserven, Schwerpunktwahl und Forschungsbudgets genutzt.
 
 Speicherformat-Version und App-Version sind getrennt. Ergänzte Spielfelder erhalten beim Laden alter Stände sichere Standardwerte. Für App-Dateiänderungen die Release-Version und den Service-Worker-Cache-Namen gemeinsam erhöhen.

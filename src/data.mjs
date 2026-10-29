@@ -1,5 +1,5 @@
 export const VERSION = 1;
-export const RELEASE = '2.0.0';
+export const RELEASE = '2.1.0';
 export const STEP = 1; // One simulated step is one real second; production rates stay unchanged.
 export const HOUR = 60; // One economy hour takes one real minute.
 export const DAY = 24 * HOUR;
@@ -39,6 +39,9 @@ export const RESOURCES = {
   climate: { name:'Klimamodule',icon:'leaf',base:400000,tier:9,sector:'industry',depth:2000 },
   starships: { name:'Raumfrachter',icon:'rocket',base:3000000,tier:10,sector:'tech',depth:1500 },
   habitats: { name:'Wirtschaftshabitate',icon:'globe',base:6000000,tier:10,sector:'tech',depth:1500 },
+  biospheres:{name:'Biosphären',icon:'leaf',base:18000000,tier:11,sector:'food',depth:1500},
+  knowledge:{name:'Wissensarchive',icon:'book',base:24000000,tier:11,sector:'tech',depth:1500},
+  colonies:{name:'Autonome Kolonien',icon:'globe',base:120000000,tier:11,sector:'tech',depth:1000},
 };
 
 // Output and input are per economy hour (one real minute).
@@ -76,6 +79,9 @@ export const BUILDINGS = {
   climateworks:{name:'Klimasystembau',icon:'leaf',tier:9,cost:650000000,staff:420,wage:70000,output:{climate:3},input:{nano:4,robots:20,cells:6,machines:80,steel:300},energy:550,freight:120,pollution:1,materials:{robots:100,alloys:500}},
   shipyard:{name:'Interstellare Werft',icon:'rocket',tier:10,cost:2000000000,staff:800,wage:180000,output:{starships:1},input:{nano:8,quantum:6,robots:20,satellites:10,cells:10},energy:900,freight:220,pollution:3.5,materials:{nano:80,robots:100}},
   habitatworks:{name:'Habitatkonstruktion',icon:'globe',tier:10,cost:3000000000,staff:1000,wage:240000,output:{habitats:1},input:{starships:1,climate:2,nano:5,robots:20,steel:600,polymers:100},energy:1400,freight:350,pollution:4.5,materials:{starships:2,nano:100,robots:200}},
+  biosphereworks:{name:'Biosphärengestaltung',icon:'leaf',tier:11,cost:12000000000,staff:2000,wage:900000,output:{biospheres:2},input:{habitats:1,climate:20,biotech:200,cells:60,water:3000},energy:2200,freight:600,pollution:1,materials:{habitats:8,climate:80,nano:500}},
+  memoryworks:{name:'Wissensmanufaktur',icon:'book',tier:11,cost:18000000000,staff:1500,wage:1200000,output:{knowledge:1},input:{quantum:80,nano:40,cells:100,robots:200},energy:2800,freight:500,pollution:2,materials:{quantum:500,robots:1000,starships:5}},
+  colonyworks:{name:'Koloniegründung',icon:'globe',tier:11,cost:35000000000,staff:4000,wage:4000000,output:{colonies:1},input:{habitats:4,biospheres:2,knowledge:1,starships:2,biotech:300},energy:4500,freight:1000,pollution:4,materials:{habitats:20,biospheres:4,knowledge:10}},
 };
 
 export const TIERS = [
@@ -90,6 +96,7 @@ export const TIERS = [
   {name:'Fusionswirtschaft',wealth:400000000,icon:'bolt'},
   {name:'Planetare Wirtschaft',wealth:1500000000,icon:'globe'},
   {name:'Interstellare Wirtschaft',wealth:5000000000,icon:'rocket'},
+  {name:'Autonome Ökonomien',wealth:25000000000,icon:'globe'},
 ];
 
 export const INFRA = {
@@ -205,4 +212,5 @@ export const PROGRAMMES=[
   {id:'networks',name:'Wirtschaft ohne Reibung',tier:8,wealth:400000000,cash:90000000,points:20000,materials:{cells:50,quantum:20,biotech:100},duration:84*REAL_HOUR,bonus:{production:9,finance:15,logistics:12},brief:'Technologie allein reicht nicht. Richte das ganze Unternehmen auf seine nächste Entwicklungsphase aus.'},
   {id:'planet',name:'Verantwortung im großen Maßstab',tier:9,wealth:1500000000,cash:300000000,points:60000,materials:{nano:60,climate:15,robots:200},duration:96*REAL_HOUR,bonus:{production:10,finance:20,logistics:15},brief:'Deine Entscheidungen wirken über einzelne Branchen hinaus. Wähle einen dauerhaften Schwerpunkt für deine Holding.'},
   {id:'legacy',name:'Ein dauerhafter Wert',tier:10,wealth:5000000000,cash:1000000000,points:150000,materials:{starships:5,habitats:2,nano:200},duration:120*REAL_HOUR,bonus:{production:12,finance:25,logistics:20},brief:'Aus einem kleinen Betrieb ist eine eigene Wirtschaftsordnung geworden. Gestalte das Vermächtnis, mit dem sie weiterwächst.'},
+  {id:'autonomy',name:'Was aus deinem Anfang geworden ist',tier:11,wealth:25000000000,cash:4000000000,points:600000,materials:{biospheres:4,knowledge:10,colonies:1},duration:168*REAL_HOUR,bonus:{production:15,finance:30,logistics:25},brief:'Deine Betriebe versorgen ganze eigenständige Wirtschaftsräume. Gib ihnen die Stärke mit, die dein Imperium dauerhaft prägen soll.'},
 ];
