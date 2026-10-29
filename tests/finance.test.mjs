@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGame,assets,propertyTrade,advance,buyOption,optionQuote,sellOption,referencePrice,stockTrade,toggleDividendReinvestment,createSavingsPlan,cancelSavingsPlan,setTreasury,emergencyAid,companyFundamentals,build,supplyPlan,setupSupplies} from '../src/engine.mjs';
+import {createGame,assets,propertyTrade,advance,buyOption,optionQuote,sellOption,referencePrice,stockTrade,toggleDividendReinvestment,createSavingsPlan,cancelSavingsPlan,setTreasury,emergencyAid,restructure,companyFundamentals,build,supplyPlan,setupSupplies} from '../src/engine.mjs';
 import {normalCDF,optionPrice} from '../src/math.mjs';
 import {encode,decode} from '../src/storage.mjs';
 import {DAY,ACHIEVEMENTS,PROPERTIES,STOCKS,BUILDINGS,RESOURCES,INFRA,RESEARCH,BONDS,VENTURES} from '../src/data.mjs';
@@ -90,6 +90,18 @@ test('empty companies have a recovery path with a cooldown',()=>{
   const s=createGame('Recovery',now,42);s.cash=0;for(const r of Object.keys(s.inventory))s.inventory[r]=0;
   assert.ok(emergencyAid(s).ok);assert.equal(s.cash,200);s.cash=0;assert.equal(emergencyAid(s).ok,false);
   s.elapsed=300;assert.ok(emergencyAid(s).ok);
+});
+
+test('a debt spiral has a recovery path that preserves discoveries but cancels all financial positions',()=>{
+  const s=game();assert.equal(restructure(s,now),null);
+  s.cash=0;s.debt=1e8;for(const id of Object.keys(s.inventory))s.inventory[id]=0;
+  s.research.forestry=2;s.legacy=3;
+  s.bonds.push({id:900,type:'state',principal:5000,start:0,end:DAY,rate:.0015});
+  const next=restructure(s,now);
+  assert.ok(next);assert.equal(next.cash,600);assert.equal(next.debt,0);assert.equal(next.bonds.length,0);assert.equal(next.buildings.lumber.count,1);
+  assert.equal(next.tier,6);assert.equal(next.research.forestry,2);assert.equal(next.legacy,3);assert.equal(next.reputation,15);
+  next.automation.wood={mode:'sell',low:0,high:10};const cash=next.cash;advance(next,now+60000);assert.ok(next.cash>cash);
+  assert.deepEqual(decode(encode(next),now+60000).game,next);
 });
 
 test('extended finance state roundtrips without losing basis, reports, plans or settings',()=>{

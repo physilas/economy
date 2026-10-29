@@ -78,7 +78,7 @@ function revenue(s, amount) {
   s.dayLedger.revenue += amount;
 }
 function expense(s, amount) {
-  s.cash -= amount;
+  s.cash = Math.max(0,s.cash-amount);
   s.stats.expenses += amount;
   s.hourLedger.costs += amount;
   s.dayLedger.costs += amount;
@@ -499,6 +499,24 @@ export function emergencyAid(s){
   s.cash+=200;s.emergencyNext=s.elapsed+300;s.stats.grants+=200;
   log(s,'Öffentlicher Notauftrag erledigt: +200 € Betriebskapital.','contract');
   return ok('200 € Starthilfe. Pausiere unrentable Betriebe und starte eine tragfähige Kette.');
+}
+
+export function restructure(s,now=Date.now()){
+  const a=assets(s);
+  if(a.total>=0||s.cash>=100||a.inventory+a.banks+a.securities>=200)return null;
+  const fresh=createGame(s.name,now,s.seed);
+  fresh.created=s.created;fresh.elapsed=s.elapsed;fresh.cash=600;fresh.seed=s.seed;
+  fresh.tier=s.tier;fresh.research={...s.research};fresh.legacy=s.legacy;fresh.prestigeCount=s.prestigeCount;
+  fresh.reputation=15;fresh.tutorial=false;fresh.nextId=s.nextId;
+  fresh.achievements=[...s.achievements];fresh.journal=[...s.journal];
+  fresh.stats={...s.stats,built:s.stats.built+1,resets:s.stats.resets+1,lastProfit:0,lastRevenue:0,lastCosts:0,history:[...s.stats.history]};
+  fresh.market=JSON.parse(JSON.stringify(s.market));fresh.economy={...s.economy};fresh.event=s.event?{...s.event}:null;
+  for(const id of Object.keys(STOCKS))fresh.stocks[id]={...s.stocks[id],history:[...s.stocks[id].history],quantity:0,basis:0,reserve:0,drip:false};
+  for(const id of Object.keys(PROPERTIES))fresh.properties[id]={...s.properties[id],history:[...s.properties[id].history],count:0,basis:0};
+  fresh.buildings.lumber={count:1,active:1,level:0,book:320};
+  refreshBoard(fresh);
+  log(fresh,'Sanierung abgeschlossen. Alle alten Anlagen und Finanzpositionen abgegeben, Schulden getilgt. Neustart mit 600 €, einem Holzfäller und deinem Wissen.','milestone');
+  return fresh;
 }
 
 export function supplyPlan(s){

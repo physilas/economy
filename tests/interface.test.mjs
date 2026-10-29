@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, access } from 'node:fs/promises';
 import { createGame, advance, build, assets } from '../src/engine.mjs';
-import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, STOCKS } from '../src/data.mjs';
+import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, STOCKS, RELEASE } from '../src/data.mjs';
 import * as V from '../src/views.mjs';
 
 const ui={qty:1,amount:100,fixedDays:20,open:new Set(),productionTab:'business',buildFilter:'all',marketFilter:'all',financeTab:'bank'};
@@ -56,4 +56,6 @@ test('every precached PWA file exists and manifest uses relative paths',async()=
   for(const entry of manifest.icons)await access(new URL('../'+entry.src,import.meta.url));
   const index=await readFile(new URL('../index.html',import.meta.url),'utf8');
   assert.ok(index.includes('viewport-fit=cover'));assert.ok(index.includes('apple-mobile-web-app-capable'));
+  assert.ok(worker.includes('null-v'+RELEASE));
+  assert.equal(JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,RELEASE);
 });

@@ -1,13 +1,13 @@
 import * as E from './engine.mjs';
 import * as V from './views.mjs';
 import * as Store from './storage.mjs';
-import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, BONDS, VENTURES, DAY, OFFLINE_LIMIT } from './data.mjs';
+import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, BONDS, VENTURES, DAY, OFFLINE_LIMIT, RELEASE } from './data.mjs';
 import { icon, mark } from './icons.mjs';
 import {help} from './help.mjs';
 
 const app = document.querySelector('#app'), dialog = document.querySelector('#dialog');
 const leaseKey = 'null-economy:lease', sessionId = globalThis.crypto?.randomUUID?.() || String(Math.random());
-let game = null, running = false, busy = false, pending = null, toastTimer, lastSaveAttempt = 0, worker = null, registration = null, installPrompt = null, queuedDiscovery = null;
+let game = null, running = false, busy = false, pending = null, toastTimer, lastSaveAttempt = 0, worker = null, registration = null, installPrompt = null, queuedDiscovery = null, interactingUntil = 0;
 const ui = { screen:'menu', tab:'overview', productionTab:'business', financeTab:'bank', buildFilter:'all', marketFilter:'all', qty:1, amount:100, fixedDays:20,optionResource:'wood',optionType:'put',optionDays:3,planStock:'sylva',planPeriod:1, open:new Set(), offlineReady:false, updateReady:false, lastSaved:0, saveError:'', previousScreen:'menu' };
 
 function toast(message, error = false) {
@@ -17,6 +17,8 @@ function toast(message, error = false) {
 
 function safeSave(slot = 'auto', silent = true) {
   if (!game || busy) return false;
+  const lease=readLease();
+  if(slot==='auto'&&lease&&lease.id!==sessionId&&Date.now()-lease.at<14000)return false;
   try {
     const saved = Store.save(game, slot); ui.lastSaved = saved; ui.saveError = ''; lastSaveAttempt = saved;
     if (!silent) toast(slot === 'auto' ? 'Spielstand gesichert.' : 'Manueller Spielstand gespeichert.');
@@ -42,14 +44,31 @@ function claimLease(force = false) {
 }
 function releaseLease() { try { if (readLease()?.id === sessionId) localStorage.removeItem(leaseKey); } catch { /* Storage warning is handled by saving. */ } }
 
-function render() {
+function morph(oldNode,newNode){
+  if(oldNode.nodeType!==newNode.nodeType||oldNode.nodeName!==newNode.nodeName){oldNode.replaceWith(newNode.cloneNode(true));return;}
+  if(oldNode.nodeType===Node.TEXT_NODE){if(oldNode.data!==newNode.data)oldNode.data=newNode.data;return;}
+  if(oldNode.nodeType!==Node.ELEMENT_NODE)return;
+  for(const attribute of [...oldNode.attributes])if(!newNode.hasAttribute(attribute.name))oldNode.removeAttribute(attribute.name);
+  for(const attribute of newNode.attributes)if(oldNode.getAttribute(attribute.name)!==attribute.value)oldNode.setAttribute(attribute.name,attribute.value);
+  const oldChildren=[...oldNode.childNodes],newChildren=[...newNode.childNodes];
+  for(let i=0;i<Math.max(oldChildren.length,newChildren.length);i++){
+    if(!newChildren[i])oldChildren[i].remove();else if(!oldChildren[i])oldNode.append(newChildren[i].cloneNode(true));else morph(oldChildren[i],newChildren[i]);
+  }
+}
+function writeView(html,live){
+  if(!live){app.innerHTML=html;return;}
+  const template=document.createElement('template');template.innerHTML=html;
+  if(app.childNodes.length===1&&template.content.childNodes.length===1)morph(app.firstChild,template.content.firstChild);
+  else app.innerHTML=html;
+}
+function render(live=false) {
   if (busy) return;
   if (ui.screen === 'menu') { app.innerHTML = V.menu(game,ui); return; }
   const content = ui.tab === 'saves' ? V.savesView(game,ui,saves()) : ui.tab === 'guide' ? V.guide(game) : !game ? '' :
     ui.tab === 'overview' ? V.overview(game,ui) : ui.tab === 'production' ? V.production(game,ui) : ui.tab === 'market' ? V.market(game,ui) :
     ui.tab === 'finance' ? V.finance(game,ui) : ui.tab === 'research' ? V.researchView(game,ui) : ui.tab === 'contracts' ? V.contracts(game) :
     ui.tab === 'journal' ? V.journal(game) : ui.tab === 'statistics' ? V.statistics(game) : V.more(game);
-  if (game && ui.screen === 'game') app.innerHTML = V.frame(game,ui,content);
+  if (game && ui.screen === 'game') writeView(V.frame(game,ui,content),live);
   else app.innerHTML = `<div class="shell"><header class="topbar"><button class="brand" data-action="menu">${mark()}NULL</button><button class="small" data-action="menu">Zurück</button></header><main id="content" class="mt24">${content}</main></div>`;
 }
 
@@ -79,6 +98,7 @@ function finish(result, oldTier = game?.tier) {
 }
 
 async function catchUp(s, now) {
+  if(now<s.lastUpdate){s.lastUpdate=now;return {game:s,result:{seconds:0,skipped:0,steps:0,clockBack:true}};}
   if ((now - s.lastUpdate) / 1000 < 120) return { game:s, result:E.advance(s,now) };
   app.innerHTML = `<main class="loading-screen">${mark()}<h2>Die Welt stand nicht still.</h2><p>Deine Produktion, Märkte und Anlagen werden für die vergangene Zeit nachgerechnet.</p><progress id="offline-progress" value="0" max="1" aria-label="Offline-Fortschritt berechnen"></progress><p id="offline-progress-label" class="eyebrow">Deine Wirtschaft rechnet</p></main>`;
   if (typeof Worker !== 'undefined') {
@@ -115,15 +135,19 @@ function offlineReport(result, oldTier) {
 
 async function resume(s = game, force = false) {
   if (!s || busy) return;
+  if(force&&s===game){try{const latest=Store.load();if(latest&&latest.game.lastUpdate>s.lastUpdate)s=latest.game;}catch{}}
   if (!claimLease(force)) {
     openDialog('Ein Unternehmen. Eine Sitzung.','<p>NULL läuft bereits in einem anderen Tab. Um doppelte Simulation und widersprüchliche Spielstände zu vermeiden, kann immer nur eine Sitzung aktiv sein.</p><p>Beim Fortsetzen hier wird die andere Sitzung angehalten.</p>',()=>resume(s,true),'Hier fortsetzen'); return;
   }
   busy=true; const oldTier=s.tier;
-  const pulse=setInterval(()=>claimLease(true),5000);
+  const pulse=setInterval(()=>claimLease(),5000);
   try {
-    const outcome=await catchUp(s,Date.now()); game=outcome.game; busy=false; running=true; ui.screen='game';
+    const outcome=await catchUp(s,Date.now());
+    const lease=readLease();if(lease&&lease.id!==sessionId&&Date.now()-lease.at<14000)throw new Error('Das Unternehmen ist inzwischen in einer anderen Sitzung aktiv.');
+    game=outcome.game; busy=false; running=true; ui.screen='game';
     if(['saves','guide'].includes(ui.tab))ui.tab='overview';
     safeSave(); render(); offlineReport(outcome.result,oldTier);
+    if(outcome.result.clockBack)toast('Die Geräteuhr wurde korrigiert. Dein Unternehmen läuft ab jetzt weiter.');
     Store.requestPersistence();
   } catch(error) { busy=false;running=false;ui.screen='menu';render();toast(`Nachberechnung fehlgeschlagen: ${error.message}. Dein gespeicherter Stand bleibt erhalten.`,true); }
   finally { clearInterval(pulse); }
@@ -178,7 +202,7 @@ async function action(button) {
   if(action==='qty'){ui.qty=Number(id);render();return;}
   if(action==='amount'){ui.amount=E.clamp(ui.amount+Number(id),1,1e14);render();return;}
   if(action==='expand'){ui.open.has(id)?ui.open.delete(id):ui.open.add(id);render();return;}
-  if(['productionTab','financeTab','marketFilter'].includes(action)){ui[action]=id;render();return;}
+  if(['productionTab','financeTab','marketFilter'].includes(action)){ui[action]=id;if(action==='financeTab'&&id==='hedges'&&RESOURCES[ui.optionResource].tier>game.tier)ui.optionResource='wood';render();return;}
   if(action==='update'){
     if(!registration?.waiting){toast('Du verwendest bereits die aktuelle Version.');return;}
     if(game&&!safeSave()){openDialog('Spielstand zuerst sichern.','<p>Der lokale Speicher ist gerade nicht verfügbar. Exportiere deinen Spielstand unter „Spielstände“, bevor du das Update erneut startest.</p>');return;}
@@ -225,6 +249,9 @@ async function action(button) {
   if(action==='cancelPlan'){finish(E.cancelSavingsPlan(game,Number(id)));return;}
   if(action==='property'){finish(E.propertyTrade(game,id,ui.qty,side),oldTier);return;}
   if(action==='emergency'){finish(E.emergencyAid(game));return;}
+  if(action==='restructure'){
+    openDialog('Ein tragfähiger Neustart.',`<p>Eine Sanierung gibt <strong>alle Produktionsanlagen, Infrastruktur, Waren und Finanzanlagen</strong> ab und löscht sämtliche Schulden. Du beginnst mit 600 €, einer kleinen Materialreserve und einem Holzfäller.</p><p>Forschung, bereits entdeckte Inhalte, Meilensteine und Vermächtnispunkte bleiben erhalten. Deine Reputation fällt auf 15. Exportiere deinen Stand vorher, wenn du ihn behalten möchtest.</p>`,()=>{const next=E.restructure(game);if(next){game=next;ui.tab='overview';ui.open.clear();finish(Eresult('Die Sanierung ist abgeschlossen. Dein Wissen bleibt.'));}else toast('Nutze zuerst vorhandene liquide Mittel. Sanierung ist nur bei Überschuldung und fast leerer Kasse möglich.',true);},'Sanierung durchführen');return;
+  }
   if(action==='buyOption'){
     const q=E.optionQuote(game,ui.optionResource,ui.optionType,ui.qty,ui.optionDays),resource=ui.optionResource,type=ui.optionType,quantity=ui.qty,days=ui.optionDays;
     openDialog('Eine Grenze für dein Risiko.',`<p>${quantity} Einheiten ${RESOURCES[resource].name}: ${type==='put'?'Schutz gegen fallende':'Schutz gegen steigende'} Preise. Laufzeit ${V.duration(days*DAY)} echt.</p><p>Prämie und maximaler Verlust: <strong>${V.money(q.premium,2)}</strong>. Abrechnung zum Außenmarktpreis, ohne Warenlieferung. Keine Nachschusspflicht.</p>`,()=>finish(E.buyOption(game,resource,type,quantity,days)),'Absicherung kaufen');return;
@@ -273,6 +300,9 @@ document.addEventListener('click',event=>{
   const button=event.target.closest('button[data-action]');
   if(button)action(button).catch(error=>{console.error(error);toast(`Aktion nicht ausgeführt: ${error.message}`,true);});
 });
+document.addEventListener('pointerdown',()=>{interactingUntil=Date.now()+1500;},{passive:true});
+document.addEventListener('pointerup',()=>{interactingUntil=Date.now()+150;},{passive:true});
+document.addEventListener('pointercancel',()=>{interactingUntil=Date.now()+150;},{passive:true});
 dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeDialog();}});
 dialog.addEventListener('cancel',()=>{pending=null;});
 
@@ -308,10 +338,11 @@ document.querySelector('#import-file').addEventListener('change',async event=>{
 setInterval(()=>{
   if(!running||!game||busy||document.hidden)return;
   if(!claimLease()){running=false;ui.screen='menu';render();toast('Das Unternehmen wird in einer anderen Sitzung fortgesetzt.',true);return;}
+  if(Date.now()<game.lastUpdate){game.lastUpdate=Date.now();toast('Die Geräteuhr wurde korrigiert. Die Simulation läuft weiter.');}
   const oldTier=game.tier,result=E.advance(game,Date.now());
   if(Date.now()-lastSaveAttempt>=15000)safeSave();
   if(game.tier>oldTier)queuedDiscovery=queuedDiscovery===null?oldTier:Math.min(queuedDiscovery,oldTier);
-  if(result.steps&&!dialog.open&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) {render();flushDiscovery();}
+  if(result.steps&&!dialog.open&&Date.now()>interactingUntil&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) {render(true);flushDiscovery();}
 },1000);
 
 document.addEventListener('visibilitychange',async()=>{
@@ -350,4 +381,4 @@ try {
 render();setupOffline();
 
 // A small public diagnostics surface exposes no save mutation API.
-window.NULL_VERSION='1.0.0';
+window.NULL_VERSION=RELEASE;
