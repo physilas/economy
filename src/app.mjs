@@ -219,7 +219,8 @@ async function action(button) {
   if(['productionTab','financeTab','marketFilter'].includes(action)){ui[action]=id;if(action==='financeTab'&&id==='hedges'&&RESOURCES[ui.optionResource].tier>game.tier)ui.optionResource='wood';render();return;}
   if(action==='update'){
     if(!registration?.waiting){toast('Du verwendest bereits die aktuelle Version.');return;}
-    if(game&&!safeSave()){openDialog('Spielstand zuerst sichern.','<p>Der lokale Speicher ist gerade nicht verfügbar. Exportiere deinen Spielstand unter „Spielstände“, bevor du das Update erneut startest.</p>');return;}
+    // Paused menus may hold an older snapshot than another tab's autosave.
+    if(game&&running&&!safeSave()){openDialog('Spielstand zuerst sichern.','<p>Der lokale Speicher ist gerade nicht verfügbar. Exportiere deinen Spielstand unter „Spielstände“, bevor du das Update erneut startest.</p>');return;}
     running=false;button.disabled=true;button.textContent='Wird geladen …';
     registration.waiting.postMessage({type:'SKIP_WAITING'});return;
   }
@@ -393,7 +394,7 @@ async function setupOffline() {
     await navigator.serviceWorker.ready;ui.offlineReady=true;
     if(!busy)render();
     let refreshing=false;
-    navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!hadController||refreshing)return;refreshing=true;if(game)safeSave();window.location.reload();});
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!hadController||refreshing)return;refreshing=true;if(game&&running)safeSave();window.location.reload();});
     const offer=()=>{if(registration.waiting){ui.updateReady=true;if(!busy&&!dialog.open)render();toast('Neue Version bereit. Tippe auf „Update laden“.');}};
     offer();registration.addEventListener('updatefound',()=>{const installing=registration.installing;installing?.addEventListener('statechange',()=>{if(installing.state==='installed'&&navigator.serviceWorker.controller)setTimeout(offer,0);});});
     checkUpdate();
