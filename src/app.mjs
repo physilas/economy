@@ -6,7 +6,7 @@ import { icon, mark } from './icons.mjs';
 
 const app = document.querySelector('#app'), dialog = document.querySelector('#dialog');
 const leaseKey = 'null-economy:lease', sessionId = globalThis.crypto?.randomUUID?.() || String(Math.random());
-let game = null, running = false, busy = false, pending = null, toastTimer, lastSaveAttempt = 0, worker = null, registration = null, installPrompt = null;
+let game = null, running = false, busy = false, pending = null, toastTimer, lastSaveAttempt = 0, worker = null, registration = null, installPrompt = null, queuedDiscovery = null;
 const ui = { screen:'menu', tab:'overview', productionTab:'business', financeTab:'bank', buildFilter:'all', marketFilter:'all', qty:1, amount:100, fixedDays:20, open:new Set(), offlineReady:false, updateReady:false, lastSaved:0, saveError:'', previousScreen:'menu' };
 
 function toast(message, error = false) {
@@ -57,10 +57,12 @@ function openDialog(title, body, onConfirm = null, confirmLabel = 'Bestätigen',
   dialog.innerHTML = `<button class="dialog-close" data-action="closeDialog" aria-label="Dialog schließen">${icon('close')}</button><h2 id="dialog-title">${title}</h2>${body}<div class="dialog-actions">${onConfirm ? `<button data-action="closeDialog">${cancelLabel}</button><button class="primary" data-action="confirmDialog">${confirmLabel}</button>` : '<button class="primary" data-action="closeDialog">Verstanden</button>'}</div>`;
   if (!dialog.open) dialog.showModal();
 }
-function closeDialog() { dialog.close(); pending = null; }
+function closeDialog() { dialog.close(); pending = null;flushDiscovery(); }
+function flushDiscovery(){if(queuedDiscovery!==null&&!dialog.open&&!busy&&running){const tier=queuedDiscovery;queuedDiscovery=null;setTimeout(()=>showDiscoveries(tier),0);}}
 
 function showDiscoveries(oldTier) {
   if (!game || game.tier <= oldTier) return false;
+  if(dialog.open){queuedDiscovery=queuedDiscovery===null?oldTier:Math.min(queuedDiscovery,oldTier);return true;}
   const b = Object.values(BUILDINGS).filter(d => d.tier > oldTier && d.tier <= game.tier);
   const resources = Object.values(RESOURCES).filter(d => d.tier > oldTier && d.tier <= game.tier);
   const research = Object.values(RESEARCH).filter(d => d.tier > oldTier && d.tier <= game.tier);
@@ -94,7 +96,7 @@ async function catchUp(s, now) {
   // Older WebViews still yield between batches rather than blocking the interface.
   const target = Math.min(now,s.lastUpdate + OFFLINE_LIMIT*1000), total = Math.max(1,target-s.lastUpdate), initial=s.lastUpdate;
   const result = {seconds:0,skipped:Math.max(0,(now-target)/1000),steps:0,cash:0,wealth:0,produced:0,interest:0,dividends:0,taxes:0};
-  while (s.lastUpdate + 5000 <= target) {
+  while (s.lastUpdate + 1000 <= target) {
     const part=E.advance(s,Math.min(target,s.lastUpdate+3600000),{offline:true});
     for(const key of Object.keys(result))if(key!=='skipped')result[key]+=part[key]||0;
     const node=document.querySelector('#offline-progress');if(node)node.value=(s.lastUpdate-initial)/total;
@@ -136,7 +138,7 @@ function prepareNew() {
   openDialog('Ein neuer Anfang.',`<p>Wie soll dein Unternehmen heißen?</p><label for="new-name" class="mt16">Unternehmensname</label><input id="new-name" type="text" maxlength="36" value="Mein Unternehmen" autocomplete="off">${game?'<p>Ein neues Unternehmen ersetzt den automatischen Spielstand. Manuelle Speicherplätze bleiben erhalten. Exportiere deinen bisherigen Stand vorher, wenn du ihn behalten möchtest.</p>':''}`,async()=>{
     const name=document.querySelector('#new-name')?.value||'Mein Unternehmen';
     if(!claimLease()) { toast('Bitte schließe zuerst die andere aktive NULL-Sitzung.',true);return; }
-    if(game)safeSave(); game=E.createGame(name);ui.tab='overview';ui.productionTab='business';ui.financeTab='bank';ui.open.clear();await resume(game);
+    if(game)safeSave(); const next=E.createGame(name);ui.tab='overview';ui.productionTab='business';ui.financeTab='bank';ui.open.clear();await resume(next);
   },'Unternehmen gründen');
   setTimeout(()=>document.querySelector('#new-name')?.select(),50);
 }
@@ -159,7 +161,7 @@ async function action(button) {
     const callback=pending;pending=null;
     // Call before closing so form controls remain readable, then preserve any replacement dialog.
     const previous=dialog.innerHTML;
-    try { const result=callback?.();if(dialog.innerHTML===previous)dialog.close();await result; }catch(error){toast(error.message,true);}
+    try { const result=callback?.();if(dialog.innerHTML===previous)dialog.close();await result;flushDiscovery(); }catch(error){toast(error.message,true);}
     return;
   }
   if(action==='new'){prepareNew();return;}
@@ -184,7 +186,7 @@ async function action(button) {
   if(action==='import'){document.querySelector('#import-file').click();return;}
   if(action==='loadSlot'){
     openDialog('Diesen Stand laden?','<p>Dein aktueller automatischer Stand wird ersetzt. Die seit der Sicherung verstrichene Zeit wird nachgerechnet. Exportiere vorher einen Stand, den du behalten möchtest.</p>',async()=>{
-      try { const loaded=Store.load(id);if(!loaded)throw new Error('Spielstand nicht gefunden.');if(game)safeSave();game=loaded.game;ui.tab='overview';await resume(game);if(loaded.recovered)toast('Letzte gültige Sicherungskopie wiederhergestellt.'); }catch(error){toast(error.message,true);}
+      try { const loaded=Store.load(id);if(!loaded)throw new Error('Spielstand nicht gefunden.');if(game)safeSave();ui.tab='overview';await resume(loaded.game);if(loaded.recovered)toast('Letzte gültige Sicherungskopie wiederhergestellt.'); }catch(error){toast(error.message,true);}
     },'Spielstand laden');return;
   }
   if(action==='deleteSlot'){openDialog('Spielstand löschen?','<p>Dieser manuelle Speicherplatz und seine Sicherungskopie werden gelöscht.</p>',()=>{try{Store.deleteSave(id);render();toast('Spielstand gelöscht.');}catch(error){toast(error.message,true);}},'Löschen');return;}
@@ -278,7 +280,7 @@ document.querySelector('#import-file').addEventListener('change',async event=>{
   try {
     if(file.size>2500000)throw new Error('Die Datei ist zu groß.');
     const loaded=Store.decode(await file.text());
-    openDialog('Spielstand importieren?',`<p><strong>${V.esc(loaded.game.name)}</strong><br>${V.cash(loaded.game.cash)} · ${TIERS[loaded.game.tier].name}</p><p>Der aktuelle automatische Stand wird ersetzt. Die verstrichene Zeit wird anschließend nachgerechnet.</p>`,async()=>{if(game)safeSave();game=loaded.game;ui.tab='overview';await resume(game);},'Importieren');
+    openDialog('Spielstand importieren?',`<p><strong>${V.esc(loaded.game.name)}</strong><br>${V.cash(loaded.game.cash)} · ${TIERS[loaded.game.tier].name}</p><p>Der aktuelle automatische Stand wird ersetzt. Die verstrichene Zeit wird anschließend nachgerechnet.</p>`,async()=>{if(game)safeSave();ui.tab='overview';await resume(loaded.game);},'Importieren');
   }catch(error){toast(error.message,true);}
 });
 
@@ -287,7 +289,8 @@ setInterval(()=>{
   if(!claimLease()){running=false;ui.screen='menu';render();toast('Das Unternehmen wird in einer anderen Sitzung fortgesetzt.',true);return;}
   const oldTier=game.tier,result=E.advance(game,Date.now());
   if(Date.now()-lastSaveAttempt>=15000)safeSave();
-  if(result.steps&&!dialog.open&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) {render();showDiscoveries(oldTier);}
+  if(game.tier>oldTier)queuedDiscovery=queuedDiscovery===null?oldTier:Math.min(queuedDiscovery,oldTier);
+  if(result.steps&&!dialog.open&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) {render();flushDiscovery();}
 },1000);
 
 document.addEventListener('visibilitychange',async()=>{

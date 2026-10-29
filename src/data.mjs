@@ -1,5 +1,5 @@
 export const VERSION = 1;
-export const STEP = 5; // One simulated step is five real seconds.
+export const STEP = 1; // One simulated step is one real second; production rates stay unchanged.
 export const HOUR = 60; // One economy hour takes one real minute.
 export const DAY = 24 * HOUR;
 export const OFFLINE_LIMIT = 7 * 86400;

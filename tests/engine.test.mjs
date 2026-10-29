@@ -109,7 +109,7 @@ test('research cost and prerequisites are enforced', () => {
 
 test('offline limit, substep time and backward clocks are safe', () => {
   const s = game(); assert.equal(advance(s, START - 10000).clockBack, true);
-  assert.equal(advance(s, START + 4999).seconds, 0);
+  assert.equal(advance(s, START + 999).seconds, 0);
   const result = advance(s, START + (OFFLINE_LIMIT + 100) * 1000 + 3000);
   assert.equal(result.seconds, OFFLINE_LIMIT); assert.equal(result.skipped, 103); assert.equal(s.lastUpdate, START + (OFFLINE_LIMIT + 100) * 1000 + 3000);
 });

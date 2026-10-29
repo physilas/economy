@@ -221,18 +221,16 @@ export function upgrade(s, id) {
   return ok(`Ausbaustufe ${own.level}: +18 % Grundproduktion, +8 % Grundlohn je Stufe.`);
 }
 
-function autoTrade(s) {
-  let cashBuffer;
-  for (const id of Object.keys(RESOURCES)) {
-    if (RESOURCES[id].tier > s.tier) continue;
+function autoTrade(s, context) {
+  for (const id of context.automated) {
     const a = s.automation[id], stored = s.inventory[id];
     const sellAt = a.mode === 'both' ? a.high : a.high;
     if (['sell', 'both'].includes(a.mode) && stored > sellAt + 0.01) trade(s, id, stored - sellAt, 'sell', true);
     if (['buy', 'both'].includes(a.mode) && s.inventory[id] < a.low - 0.01) {
-      const desired = Math.min(a.low - s.inventory[id], warehouseCapacity(s) - s.inventory[id]);
+      const desired = Math.min(a.low - s.inventory[id], context.storage - s.inventory[id]);
       // Keep a cash buffer for wages. Purchases never create involuntary debt.
-      cashBuffer ??= Math.max(50, capacity(s).wages * 0.25);
-      const budget = Math.max(0, s.cash - cashBuffer);
+      const budget = Math.max(0, s.cash - context.cashBuffer);
+      if (budget < 0.01) continue;
       let n = desired;
       if (quote(s, id, n).total > budget) {
         let lo = 0, hi = n;
@@ -244,8 +242,22 @@ function autoTrade(s) {
   }
 }
 
-function produce(s, seconds, offline) {
-  const h = seconds / HOUR, c = capacity(s), policy = POLICIES[s.policy];
+function productionContext(s, offline) {
+  const c = capacity(s), policy = POLICIES[s.policy];
+  const ids = Object.keys(BUILDINGS).filter(id => s.buildings[id].active);
+  if (s.priority === 'advanced') ids.reverse();
+  return { capacity:c, storage:warehouseCapacity(s), cashBuffer:Math.max(50,c.wages*.25),
+    automated:Object.keys(RESOURCES).filter(id=>RESOURCES[id].tier<=s.tier&&s.automation[id].mode!=='off'),
+    entries:ids.map(id=>{
+      const b=BUILDINGS[id],own=s.buildings[id],mult=productionBonus(s,id,offline),scale=own.active*mult/HOUR;
+      return { input:Object.entries(b.input).map(([r,q])=>[r,q*scale]), output:Object.entries(b.output).map(([r,q])=>[r,q*scale]),
+        wages:own.active*b.wage*(1+own.level*.08)*policy.wage/HOUR };
+    }),
+  };
+}
+
+function produce(s, seconds, context) {
+  const h = seconds / HOUR, c = context.capacity;
   const desiredCoalPower = Math.max(0, c.energy - c.cleanEnergy);
   const powerFraction = s.infra.power ? Math.min(1, desiredCoalPower / (s.infra.power * 25 * (1 + s.research.energy * 0.15))) : 0;
   const coalWanted = s.infra.power * 4 * h * powerFraction;
@@ -253,22 +265,16 @@ function produce(s, seconds, offline) {
   s.inventory.coal = Math.max(0, s.inventory.coal - coalWanted * coalRatio);
   const actualPower = c.cleanEnergy + s.infra.power * 25 * (1 + s.research.energy * 0.15) * powerFraction * coalRatio;
   const global = Math.min(c.staffing, c.energy ? actualPower / c.energy : 1, c.logistics, 1) * c.environment;
-  const ids = Object.keys(BUILDINGS);
-  if (s.priority === 'advanced') ids.reverse();
-  for (const id of ids) {
-    const b = BUILDINGS[id], own = s.buildings[id];
-    if (!own.active) continue;
-    const mult = productionBonus(s, id, offline);
+  for (const entry of context.entries) {
     let factor = global;
-    const units = own.active * h;
-    for (const [r, q] of Object.entries(b.input)) factor = Math.min(factor, s.inventory[r] / (q * units * mult));
-    for (const [r, q] of Object.entries(b.output)) factor = Math.min(factor, Math.max(0, warehouseCapacity(s) - s.inventory[r]) / (q * units * mult));
-    const wages = own.active * b.wage * (1 + own.level * 0.08) * policy.wage * h;
+    for (const [r, q] of entry.input) factor = Math.min(factor, s.inventory[r] / (q * seconds));
+    for (const [r, q] of entry.output) factor = Math.min(factor, Math.max(0, context.storage - s.inventory[r]) / (q * seconds));
+    const wages = entry.wages * seconds;
     if (wages > 0) factor = Math.min(factor, s.cash / wages);
     factor = clamp(factor, 0, 1);
     if (factor < 1e-9) continue;
-    for (const [r, q] of Object.entries(b.input)) s.inventory[r] = Math.max(0, s.inventory[r] - q * units * mult * factor);
-    for (const [r, q] of Object.entries(b.output)) { const made = q * units * mult * factor; s.inventory[r] += made; s.stats.produced += made; }
+    for (const [r, q] of entry.input) s.inventory[r] = Math.max(0, s.inventory[r] - q * seconds * factor);
+    for (const [r, q] of entry.output) { const made = q * seconds * factor; s.inventory[r] += made; s.stats.produced += made; }
     expense(s, wages * factor);
   }
   const labCost = s.infra.lab * 10 * h;
@@ -486,27 +492,13 @@ function hourly(s) {
     s.event = { ...e, end: s.elapsed + e.duration * HOUR };
     log(s, `${e.name}: ${e.description}`, 'event');
   }
-  for (const [id, d] of Object.entries(RESOURCES)) {
+  for (const id of Object.keys(RESOURCES)) {
     const m = s.market[id]; m.previous = price(s, id);
-    const eventFactor = s.event && (s.event.sector === d.sector || s.event.sector === 'all') ? s.event.demand : 1;
-    const target = cycle * eventFactor * (1 + Math.sin(hour / 72 + d.base) * 0.08);
-    m.factor = clamp(m.factor + (target - m.factor) * 0.08 + (random(s) - 0.5) * 0.025, 0.45, 2.1);
-    m.pressure *= 0.982;
     m.history.push(price(s, id)); if (m.history.length > 48) m.history.shift();
   }
-  for (const [id, d] of Object.entries(STOCKS)) {
-    if (id === 'index') continue;
-    const p = s.stocks[id]; p.previous = p.price;
-    const sectorPrices = Object.keys(RESOURCES).filter(r => RESOURCES[r].sector === d.sector);
-    const sector = sectorPrices.reduce((n, r) => n + price(s, r) / RESOURCES[r].base, 0) / sectorPrices.length;
-    const anchor = d.base * clamp(sector, 0.4, 2) * (1 + Math.min(1, hour / 20000));
-    const reversion = Math.log(anchor / p.price) * 0.012;
-    p.price = clamp(p.price * Math.exp(reversion + (random(s) - 0.49) * d.volatility * 2), d.base * 0.08, d.base * 12);
-    p.history.push(p.price); if (p.history.length > 48) p.history.shift();
+  for (const p of Object.values(s.stocks)) {
+    p.previous=p.price;p.history.push(p.price);if(p.history.length>48)p.history.shift();
   }
-  const idx = s.stocks.index; idx.previous = idx.price;
-  idx.price = 100 * Object.entries(STOCKS).filter(([id]) => id !== 'index').reduce((n, [id, d]) => n + s.stocks[id].price / d.base, 0) / 5;
-  idx.history.push(idx.price); if (idx.history.length > 48) idx.history.shift();
   s.stats.lastRevenue = s.hourLedger.revenue; s.stats.lastCosts = s.hourLedger.costs;
   s.stats.lastProfit = s.hourLedger.revenue - s.hourLedger.costs;
   s.stats.history.push({ at: s.elapsed, wealth: assets(s).total, profit: s.stats.lastProfit });
@@ -515,6 +507,28 @@ function hourly(s) {
   if (hour % 6 === 0) refreshBoard(s);
   if (hour % 24 === 0) daily(s);
   checkProgress(s); checkAchievements(s);
+}
+
+function marketTick(s, fraction) {
+  const hour=s.elapsed/HOUR,cycle=s.economy.cycle;
+  for (const [id, d] of Object.entries(RESOURCES)) {
+    const m = s.market[id];
+    const eventFactor = s.event && (s.event.sector === d.sector || s.event.sector === 'all') ? s.event.demand : 1;
+    const target = cycle * eventFactor * (1 + Math.sin(hour / 72 + d.base) * 0.08);
+    m.factor = clamp(m.factor + (target - m.factor) * (1-Math.pow(0.92,fraction)) + (random(s) - 0.5) * 0.025 * Math.sqrt(fraction), 0.45, 2.1);
+    m.pressure *= Math.pow(0.982,fraction);
+  }
+  for (const [id, d] of Object.entries(STOCKS)) {
+    if (id === 'index') continue;
+    const p = s.stocks[id];
+    const sectorPrices = Object.keys(RESOURCES).filter(r => RESOURCES[r].sector === d.sector);
+    const sector = sectorPrices.reduce((n, r) => n + price(s, r) / RESOURCES[r].base, 0) / sectorPrices.length;
+    const anchor = d.base * clamp(sector, 0.4, 2) * (1 + Math.min(1, hour / 20000));
+    const reversion = Math.log(anchor / p.price) * 0.012 * fraction;
+    p.price = clamp(p.price * Math.exp(reversion + (random(s) - 0.5) * d.volatility * 2 * Math.sqrt(fraction) + .02*d.volatility*fraction), d.base * 0.08, d.base * 12);
+  }
+  const idx = s.stocks.index;
+  idx.price = 100 * Object.entries(STOCKS).filter(([id]) => id !== 'index').reduce((n, [id, d]) => n + s.stocks[id].price / d.base, 0) / 5;
 }
 
 function daily(s) {
@@ -533,6 +547,7 @@ function daily(s) {
 function accrueFinance(s, seconds) {
   const fraction = seconds / DAY;
   for (const id of Object.keys(BANKS)) {
+    if(!s.banks[id])continue;
     const gross = s.banks[id] * (Math.pow(1 + bankRate(s, id), fraction) - 1);
     s.banks[id] += gross * 0.85; s.stats.interest += gross * 0.85; s.stats.taxes += gross * 0.15;
   }
@@ -594,20 +609,21 @@ export function advance(s, now = Date.now(), options = {}) {
   const steps = Math.floor(available / STEP), seconds = steps * STEP;
   if (!steps) return { seconds: 0, skipped: 0, steps: 0 };
   const before = { cash: s.cash, wealth: assets(s).total, produced: s.stats.produced, interest: s.stats.interest, dividends: s.stats.dividends, taxes: s.stats.taxes };
+  let context=productionContext(s,!!options.offline);
   for (let i = 0; i < steps; i++) {
-    autoTrade(s);
-    produce(s, STEP, !!options.offline);
+    autoTrade(s,context);
+    produce(s, STEP, context);
     accrueFinance(s, STEP);
-    autoTrade(s);
+    autoTrade(s,context);
     executeOrders(s);
     s.elapsed += STEP;
     settleMaturities(s);
-    if (s.elapsed % HOUR === 0) hourly(s);
-    if (options.onProgress && i % 720 === 0) options.onProgress(i / steps);
+    if(s.elapsed%5===0)marketTick(s,5/HOUR);
+    if (s.elapsed % HOUR === 0) {hourly(s);context=productionContext(s,!!options.offline);}
+    if (options.onProgress && i % 3600 === 0) options.onProgress(i / steps);
   }
   if (elapsed > OFFLINE_LIMIT) s.lastUpdate = now - (available - seconds) * 1000;
   else s.lastUpdate += seconds * 1000;
-  checkProgress(s); checkAchievements(s);
   const after = assets(s);
   return { seconds, skipped: Math.max(0, elapsed - OFFLINE_LIMIT), steps,
     cash: s.cash - before.cash, wealth: after.total - before.wealth,
