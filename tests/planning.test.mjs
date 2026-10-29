@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {previewBuilding} from '../src/planning.mjs';
 import {createGame,build,buildQuote,capacity,productionBonus} from '../src/engine.mjs';
-import {BUILDINGS,ACHIEVEMENTS,INFRA} from '../src/data.mjs';
+import {BUILDINGS,ACHIEVEMENTS,INFRA,TIERS} from '../src/data.mjs';
 import * as V from '../src/views.mjs';
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} ≈ ${b}`);
-function game(){const s=createGame('Planning',0,42);s.cash=1e8;s.tier=6;s.achievements=ACHIEVEMENTS.map(a=>a.id);return s;}
+function game(){const s=createGame('Planning',0,42);s.cash=1e8;s.tier=TIERS.length-1;s.achievements=ACHIEVEMENTS.map(a=>a.id);return s;}
 
 test('previews do not alter game state, random seed, achievements or time',()=>{
   const s=game(),before=JSON.stringify(s);

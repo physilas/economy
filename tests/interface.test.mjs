@@ -17,7 +17,7 @@ test('starting screens reveal no future resources or production chains',()=>{
 });
 
 test('each tier reveals only discovered production and research',()=>{
-  for(let tier=1;tier<7;tier++){
+  for(let tier=1;tier<TIERS.length;tier++){
     const s=createGame('Test',0,42);s.tier=tier;
     const production=V.production(s,ui),research=V.researchView(s,ui);
     for(const [id,b] of Object.entries(BUILDINGS))assert.equal(production.includes(`data-id="building:${id}"`),b.tier<=tier,`${b.name} tier ${tier}`);

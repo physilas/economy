@@ -1,17 +1,21 @@
 import {BUILDINGS,INFRA,POLICIES,HOUR} from './data.mjs';
-import {buildQuote,capacity,feeRate,price,productionBonus,supplyPlan} from './engine.mjs';
+import {buildQuote,capacity,feeRate,price,quote,productionBonus,supplyPlan,infrastructureYield} from './engine.mjs';
 
 const positiveCeil=value=>Math.ceil(Math.max(0,value-1e-9));
 const finiteCost=value=>Number.isFinite(value)?value:null;
 const technicalUtilization=c=>Math.min(c.staffing,c.energy?c.potentialEnergy/c.energy:1,c.logistics,1)*c.environment;
 function coalDemand(s,c){
-  const maximum=s.infra.power*25*(1+s.research.energy*.15);
+  const maximum=s.infra.power*infrastructureYield(s,'power','energy');
   return maximum?s.infra.power*4*Math.min(1,Math.max(0,c.energy-c.cleanEnergy)/maximum):0;
 }
 function infrastructureOption(s,id,shortage,perUnit){
   if(INFRA[id].tier>s.tier)return null;
   const quantity=positiveCeil(shortage/perUnit),d=INFRA[id],existing=s.infra[id];
-  const cost=d.cost*Math.pow(d.growth,existing)*(Math.pow(d.growth,quantity)-1)/(d.growth-1);
+  const buildingCost=d.cost*Math.pow(d.growth,existing)*(Math.pow(d.growth,quantity)-1)/(d.growth-1);
+  const materialCost=Object.entries(d.materials||{}).reduce((total,[resource,amount])=>{
+    const missing=Math.max(0,amount*quantity-s.inventory[resource]);return total+(missing>1e8?Infinity:quote(s,resource,missing).total);
+  },0);
+  const cost=quantity<=100?buildQuote(s,id,quantity,true).total:buildingCost+materialCost;
   return {id,quantity,cost:finiteCost(cost),withinLimit:quantity+existing<=10000};
 }
 
@@ -38,12 +42,9 @@ export function previewBuilding(s,id,quantity=1){
   const capacityMargin=(guarded?0:tradeMargin*afterUse)-fuelCost-ecoCost;
   const deficits=[];
   const staffShortage=Math.max(0,after.staff-after.workers),energyShortage=Math.max(0,after.energy-after.potentialEnergy),transportShortage=Math.max(0,after.freight-after.transport);
-  if(staffShortage>1e-9)deficits.push({metric:'staff',shortage:staffShortage,options:[infrastructureOption(s,'housing',staffShortage,20)].filter(Boolean)});
-  if(energyShortage>1e-9){
-    const powerBonus=1+s.research.energy*.15;
-    deficits.push({metric:'energy',shortage:energyShortage,options:[infrastructureOption(s,'power',energyShortage,25*powerBonus),infrastructureOption(s,'solar',energyShortage,20*powerBonus*(s.event?.solar||1))].filter(Boolean)});
+  for(const[metric,shortage,provided]of [['staff',staffShortage,'workers'],['energy',energyShortage,'energy'],['freight',transportShortage,'transport']]){
+    if(shortage>1e-9)deficits.push({metric,shortage,options:Object.keys(INFRA).filter(key=>INFRA[key].provides?.[provided]).map(key=>infrastructureOption(s,key,shortage,infrastructureYield(s,key,provided))).filter(Boolean)});
   }
-  if(transportShortage>1e-9)deficits.push({metric:'freight',shortage:transportShortage,options:[infrastructureOption(s,'transport',transportShortage,20*(1+s.research.logistics*.2)*(s.event?.freight||1))].filter(Boolean)});
   const previousDeficits={staff:Math.max(0,before.staff-before.workers),energy:Math.max(0,before.energy-before.potentialEnergy),freight:Math.max(0,before.freight-before.transport)};
   for(const deficit of deficits)deficit.additionalShortage=Math.max(0,deficit.shortage-previousDeficits[deficit.metric]);
   const flows=new Map(supplyPlan(planned).map(r=>[r.id,r]));

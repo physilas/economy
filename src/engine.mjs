@@ -1,5 +1,6 @@
 import { VERSION, STEP, HOUR, DAY, OFFLINE_LIMIT, RESOURCES, BUILDINGS, INFRA, RESEARCH, STOCKS, BANKS, BONDS, VENTURES, EVENTS, ACHIEVEMENTS, POLICIES, TIERS, PROPERTIES } from './data.mjs';
 import { optionPrice } from './math.mjs';
+import {createCampaign,normalizeCampaign,settleProgramme} from './campaign.mjs';
 
 export const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const sum = obj => Object.values(obj).reduce((a, b) => a + b, 0);
@@ -26,6 +27,7 @@ export function createGame(name = 'Mein Unternehmen', now = Date.now(), seed = (
     options:[], savingsPlans:[], treasury:{enabled:false,floor:150,target:600,bank:'reserve'}, emergencyNext:0,
     banks: { reserve: 0, savings: 0 }, bonds: [], ventures: [], orders: [], loans: [], debt: 0,
     policy: 'balanced', priority: 'balanced', profitGuard:false, reputation: 50, tier: 0, legacy: 0, prestigeCount: 0,
+    campaign:createCampaign(),
     contracts: [], board: [], achievements: [], journal: [], nextId: 1,
     event: null, economy: { cycle: 1, rate: 0.001, inflation: 2, phase: 'Stabil' },
     stats: { built: 0, trades: 0, produced: 0, revenue: 0, expenses: 0, interest: 0, dividends: 0, rent:0, optionPnl:0, grants:0, taxes: 0, contracts: 0, peak: 1200, lastProfit: 0, lastRevenue: 0, lastCosts: 0, history: [], resets: 0 },
@@ -34,6 +36,7 @@ export function createGame(name = 'Mein Unternehmen', now = Date.now(), seed = (
   };
   updateReports(s,true);
   s.stats.peak=assets(s).total;
+  s.campaign.peak=s.stats.peak;
   log(s, 'Willkommen bei NULL. Dein Unternehmen beginnt mit 1.200 € und einer kleinen Materialreserve.', 'milestone');
   refreshBoard(s);
   return s;
@@ -48,7 +51,7 @@ export function price(s, id) {
   const d = RESOURCES[id], m = s.market[id];
   return d ? d.base * m.factor * Math.exp(clamp(m.pressure, -1.5, 1.5)) : 0;
 }
-export const liquidity = id => 4800 / Math.pow(RESOURCES[id].base, 0.38);
+export const liquidity = id => RESOURCES[id].depth || 4800 / Math.pow(RESOURCES[id].base, 0.38);
 export const feeRate = s => Math.max(0.004, 0.012 * (1 - s.research.finance * 0.1) * (1.1 - s.reputation / 500));
 
 // Exact integral of the marginal price, including its upper and lower bounds.
@@ -101,8 +104,20 @@ export function trade(s, id, amount, side, automated = false) {
   return ok(`${RESOURCES[id].name} ${side === 'buy' ? 'gekauft' : 'verkauft'}.`, { amount, total: q.total });
 }
 
-export function warehouseCapacity(s) { return (500 + s.infra.warehouse * 500) * (1 + s.research.logistics * 0.1); }
-export function workforce(s) { return 12 + s.infra.housing * 20; }
+const infraBase=(s,metric)=>Object.entries(INFRA).reduce((total,[id,d])=>total+(s.infra[id]||0)*(d.provides?.[metric]||0),0);
+const logisticsBonus=s=>1+(s.campaign?.bonuses.logistics||0)/100;
+export const energyBonus=s=>(1+s.research.energy*.15)*(1+(s.research.systems||0)*.12);
+export function infrastructureYield(s,id,metric){
+  const d=INFRA[id];let value=d?.provides?.[metric]||0;
+  if(metric==='energy')value*=energyBonus(s)*(d.renewable?(s.event?.solar||1):1);
+  if(metric==='transport')value*=(1+s.research.logistics*.2)*(s.event?.freight||1)*logisticsBonus(s);
+  if(metric==='storage')value*=(1+s.research.logistics*.1)*logisticsBonus(s);
+  if(metric==='research')value*=(1+s.legacy*.04)*(1+(s.research.science||0)*.15);
+  return value;
+}
+export function researchRate(s){return Object.keys(INFRA).reduce((total,id)=>total+(s.infra[id]||0)*infrastructureYield(s,id,'research'),0);}
+export function warehouseCapacity(s) { return (500+infraBase(s,'storage'))*(1+s.research.logistics*.1)*logisticsBonus(s); }
+export function workforce(s) { return 12+infraBase(s,'workers'); }
 export function productionBonus(s, id, offline = false) {
   const b = BUILDINGS[id], level = s.buildings[id].level;
   let mult = (1 + level * 0.18) * (1 + s.research.efficiency * 0.08) * (1 + s.legacy * 0.08) * POLICIES[s.policy].output;
@@ -110,6 +125,7 @@ export function productionBonus(s, id, offline = false) {
   if (['farm', 'cottonFarm'].includes(id)) mult *= (1 + s.research.agronomy * 0.2) * (s.event?.farm || 1);
   if (b.tier >= 4) mult *= 1 + s.research.computing * 0.15;
   if (offline) mult *= 1 + s.research.patience * 0.1;
+  mult*=1+(s.campaign?.bonuses.production||0)/100;
   return mult;
 }
 
@@ -123,14 +139,14 @@ export function capacity(s) {
     pollution += n * b.pollution;
     wages += n * b.wage * (1 + s.buildings[id].level * 0.08) * POLICIES[s.policy].wage;
   }
-  pollution = Math.max(0, pollution * POLICIES[s.policy].pollution * Math.pow(0.88, s.research.ecology) - s.infra.park * 8);
-  const powerBonus = 1 + s.research.energy * 0.15;
-  const cleanEnergy = 6 + s.infra.solar * 20 * powerBonus * (s.event?.solar || 1);
-  const potentialEnergy = cleanEnergy + s.infra.power * 25 * powerBonus;
+  pollution = Math.max(0, pollution * POLICIES[s.policy].pollution * Math.pow(0.88, s.research.ecology) - infraBase(s,'cleanup'));
+  const cleanEnergy=6+Object.entries(INFRA).filter(([,d])=>!d.fuel).reduce((total,[id])=>total+(s.infra[id]||0)*infrastructureYield(s,id,'energy'),0);
+  const coalEnergy=s.infra.power*infrastructureYield(s,'power','energy');
+  const potentialEnergy = cleanEnergy + coalEnergy;
   const fullLoadFuel = s.infra.power * 4 * STEP / HOUR;
   const fuelAvailability = fullLoadFuel ? Math.min(1,s.inventory.coal/fullLoadFuel) : 1;
-  const availableEnergy = cleanEnergy + s.infra.power * 25 * powerBonus * fuelAvailability;
-  const transport = (12 + s.infra.transport * 20) * (1 + s.research.logistics * 0.2) * (s.event?.freight || 1);
+  const availableEnergy = cleanEnergy + coalEnergy * fuelAvailability;
+  const transport = (12+infraBase(s,'transport'))*(1+s.research.logistics*.2)*(s.event?.freight||1)*logisticsBonus(s);
   return { staff, workers: workforce(s), energy, cleanEnergy, potentialEnergy, availableEnergy, freight, transport, pollution, wages,
     staffing: staff ? Math.min(1, workforce(s) / staff) : 1,
     power: energy ? Math.min(1, availableEnergy / energy) : 1,
@@ -258,7 +274,7 @@ function productionContext(s, offline) {
   const c = capacity(s), policy = POLICIES[s.policy];
   const ids = Object.keys(BUILDINGS).filter(id => s.buildings[id].active);
   if (s.priority === 'advanced') ids.reverse();
-  const context={ capacity:c, storage:warehouseCapacity(s), cashBuffer:Math.max(50,c.wages*.25),
+  const context={ capacity:c, storage:warehouseCapacity(s), cashBuffer:Math.max(50,c.wages*.25),researchRate:researchRate(s),researchCost:infraBase(s,'research')*10,
     automated:Object.keys(RESOURCES).filter(id=>RESOURCES[id].tier<=s.tier&&s.automation[id].mode!=='off'),
     entries:ids.map(id=>{
       const b=BUILDINGS[id],own=s.buildings[id],mult=productionBonus(s,id,offline),scale=own.active*mult/HOUR;
@@ -281,11 +297,12 @@ function refreshProfitGuard(s,context){
 function produce(s, seconds, context) {
   const h = seconds / HOUR, c = context.capacity;
   const desiredCoalPower = Math.max(0, c.energy - c.cleanEnergy);
-  const powerFraction = s.infra.power ? Math.min(1, desiredCoalPower / (s.infra.power * 25 * (1 + s.research.energy * 0.15))) : 0;
+  const coalEnergy=s.infra.power*infrastructureYield(s,'power','energy');
+  const powerFraction = coalEnergy ? Math.min(1, desiredCoalPower / coalEnergy) : 0;
   const coalWanted = s.infra.power * 4 * h * powerFraction;
   const coalRatio = coalWanted ? Math.min(1, s.inventory.coal / coalWanted) : 1;
   s.inventory.coal = Math.max(0, s.inventory.coal - coalWanted * coalRatio);
-  const actualPower = c.cleanEnergy + s.infra.power * 25 * (1 + s.research.energy * 0.15) * powerFraction * coalRatio;
+  const actualPower = c.cleanEnergy + coalEnergy * powerFraction * coalRatio;
   const global = Math.min(c.staffing, c.energy ? actualPower / c.energy : 1, c.logistics, 1) * c.environment;
   for (const entry of context.entries) {
     if(entry.guarded)continue;
@@ -300,16 +317,16 @@ function produce(s, seconds, context) {
     for (const [r, q] of entry.output) { const made = q * seconds * factor; s.inventory[r] += made; s.stats.produced += made; }
     expense(s, wages * factor);
   }
-  const labCost = s.infra.lab * 10 * h;
+  const labCost = context.researchCost * h;
   const labScale = labCost ? Math.min(1, s.cash / labCost) : 0;
-  s.points += s.infra.lab * h * labScale * (1 + s.legacy * 0.04);
+  s.points += context.researchRate * h * labScale;
   expense(s, labCost * labScale);
   expense(s, Math.min(s.cash, c.ecoCost * h));
 }
 
 export function bankRate(s, id) {
   const base = id === 'reserve' ? BANKS.reserve.rate : clamp(s.economy.rate, 0.0004, 0.0018);
-  return base * (1 + s.research.finance * 0.05);
+  return Math.min(.0025,base*(1+s.research.finance*.05)*(1+(s.campaign?.bonuses.finance||0)/100));
 }
 export function bankTransfer(s, id, amount, direction) {
   if (!BANKS[id] || !Number.isFinite(amount) || amount <= 0 || amount > 1e14 || !['deposit', 'withdraw'].includes(direction)) return fail('Ungültiger Betrag.');
@@ -337,7 +354,7 @@ export function assets(s) {
 }
 export function creditLimit(s) {
   const a = assets(s);
-  return Math.min(50000000, Math.max(1000, (a.buildings * 0.5 + a.inventory * 0.3 + a.securities * 0.4 + a.properties*.6 + a.banks * 0.8) * (0.6 + s.reputation / 100)));
+  return Math.min(50000000*Math.pow(1+Math.max(0,s.tier-6),3), Math.max(1000, (a.buildings * 0.5 + a.inventory * 0.3 + a.securities * 0.4 + a.properties*.6 + a.banks * 0.8) * (0.6 + s.reputation / 100)));
 }
 export function debtRate(s) { return 0.003 + s.economy.rate + (100 - s.reputation) * 0.000015; }
 export function borrow(s, amount, term = false) {
@@ -527,6 +544,7 @@ export function restructure(s,now=Date.now()){
   fresh.created=s.created;fresh.elapsed=s.elapsed;fresh.cash=600;fresh.seed=s.seed;
   fresh.tier=s.tier;fresh.research={...s.research};fresh.legacy=s.legacy;fresh.prestigeCount=s.prestigeCount;
   fresh.reputation=15;fresh.tutorial=false;fresh.nextId=s.nextId;
+  fresh.campaign=JSON.parse(JSON.stringify(s.campaign));
   fresh.achievements=[...s.achievements];fresh.journal=[...s.journal];
   fresh.stats={...s.stats,built:s.stats.built+1,resets:s.stats.resets+1,lastProfit:0,lastRevenue:0,lastCosts:0,history:[...s.stats.history]};
   fresh.market=JSON.parse(JSON.stringify(s.market));fresh.economy={...s.economy};fresh.event=s.event?{...s.event}:null;
@@ -771,12 +789,14 @@ function accrueFinance(s, seconds) {
 export function checkProgress(s) {
   const wealth = assets(s).total;
   s.stats.peak = Math.max(s.stats.peak, wealth);
+  s.campaign.peak=Math.max(s.campaign.peak,s.stats.peak);
   const tier = TIERS.reduce((n, t, i) => s.stats.peak >= t.wealth ? i : n, 0);
   if (tier > s.tier) {
     s.tier = tier;
     log(s, `${TIERS[tier].name} freigeschaltet. Neue Betriebe, Waren und Möglichkeiten warten.`, 'milestone');
     refreshBoard(s);
   }
+  if(!s.campaign.unlocked&&s.tier>=3){s.campaign.unlocked=true;log(s,'Langfristige Holdingprogramme entdeckt. Ihre Spezialisierungen bleiben auch nach einer Neugründung erhalten.','milestone');}
 }
 
 export function checkAchievements(s) {
@@ -803,6 +823,7 @@ export function prestige(s, now = Date.now()) {
   if (!reward) return null;
   const fresh = createGame(s.name, now, s.seed);
   fresh.legacy = s.legacy + reward; fresh.prestigeCount = s.prestigeCount + 1;
+  fresh.campaign=JSON.parse(JSON.stringify(s.campaign));
   fresh.cash += fresh.legacy * 500; fresh.tutorial = false;
   log(fresh, `Neue Holding gegründet. ${fresh.legacy} Vermächtnispunkte: +${fresh.legacy * 8} % Produktion.`, 'milestone');
   checkAchievements(fresh);
@@ -825,7 +846,10 @@ export function advance(s, now = Date.now(), options = {}) {
     autoTrade(s,context);
     executeOrders(s);
     s.elapsed += STEP;
+    s.campaign.age+=STEP;
     settleMaturities(s);
+    const programme=settleProgramme(s);
+    if(programme){log(s,programme,'milestone');context=productionContext(s,!!options.offline);}
     manageTreasury(s,true);
     if(s.elapsed%5===0){marketTick(s,5/HOUR);refreshProfitGuard(s,context);}
     if (s.elapsed % HOUR === 0) {hourly(s);context=productionContext(s,!!options.offline);}
@@ -848,7 +872,7 @@ export function validateGame(raw, now = Date.now()) {
   s.created = finite(raw.created, now, now); s.lastUpdate = finite(raw.lastUpdate, now, now + 7 * 86400000);
   s.seed = finite(raw.seed, 1, 4294967295) >>> 0; s.elapsed = Math.floor(finite(raw.elapsed, 0, 1e10) / STEP) * STEP;
   for (const key of ['cash', 'points', 'debt','emergencyNext']) s[key] = finite(raw[key]);
-  s.tier = Math.floor(finite(raw.tier, 0, 6)); s.legacy = Math.floor(finite(raw.legacy, 0, 10000)); s.prestigeCount = Math.floor(finite(raw.prestigeCount, 0, 10000));
+  s.tier = Math.floor(finite(raw.tier, 0, TIERS.length-1)); s.legacy = Math.floor(finite(raw.legacy, 0, 10000)); s.prestigeCount = Math.floor(finite(raw.prestigeCount, 0, 10000));
   s.reputation = finite(raw.reputation, 50, 100); s.nextId = Math.max(1, Math.floor(finite(raw.nextId, 1, 1e12)));
   s.policy = Object.hasOwn(POLICIES, raw.policy) ? raw.policy : 'balanced'; s.priority = raw.priority === 'advanced' ? 'advanced' : 'balanced';
   s.profitGuard=raw.profitGuard===true;
@@ -894,6 +918,8 @@ export function validateGame(raw, now = Date.now()) {
   s.stats.history = cleanArray(raw.stats.history, 96).filter(h => h && Number.isFinite(h.wealth) && Number.isFinite(h.profit)).map(h => ({ at: finite(h.at), wealth: h.wealth, profit: h.profit }));
   for (const ledger of ['hourLedger', 'dayLedger']) s[ledger] = { revenue: finite(raw[ledger]?.revenue), costs: finite(raw[ledger]?.costs) };
   s.tutorial = raw.tutorial !== false;
+  s.campaign=normalizeCampaign(raw.campaign,s.elapsed,s.stats.peak);
+  s.campaign.unlocked ||= s.tier>=3;
   for(const id of Object.keys(STOCKS)){
     const baseline=companyFundamentals(s,id),r=raw.stocks?.[id]?.report;
     s.stocks[id].report=r&&typeof r==='object'?Object.fromEntries(Object.entries(baseline).map(([key,value])=>[key,typeof r[key]==='number'&&Number.isFinite(r[key])?clamp(r[key],key==='growth'?-1:0,1e10):value])):baseline;

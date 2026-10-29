@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createGame,assets,propertyTrade,advance,buyOption,optionQuote,sellOption,referencePrice,stockTrade,toggleDividendReinvestment,createSavingsPlan,cancelSavingsPlan,setTreasury,emergencyAid,restructure,companyFundamentals,build,supplyPlan,setupSupplies} from '../src/engine.mjs';
 import {normalCDF,optionPrice} from '../src/math.mjs';
 import {encode,decode} from '../src/storage.mjs';
-import {DAY,ACHIEVEMENTS,PROPERTIES,STOCKS,BUILDINGS,RESOURCES,INFRA,RESEARCH,BONDS,VENTURES} from '../src/data.mjs';
+import {DAY,ACHIEVEMENTS,PROPERTIES,STOCKS,BUILDINGS,RESOURCES,INFRA,RESEARCH,BONDS,VENTURES,TIERS} from '../src/data.mjs';
 import {help} from '../src/help.mjs';
 import * as V from '../src/views.mjs';
 const now=1800000000000;
@@ -138,7 +138,7 @@ test('extended finance state roundtrips without losing basis, reports, plans or 
 });
 
 test('every discoverable product has a meaningful info explanation',()=>{
-  const s=game();
+  const s=game();s.tier=TIERS.length-1;
   for(const [group,items] of Object.entries({building:BUILDINGS,infra:INFRA,research:RESEARCH,resource:RESOURCES,stock:STOCKS,bond:BONDS,venture:VENTURES,property:PROPERTIES})){
     for(const id of Object.keys(items)){const h=help(group+':'+id,s);assert.ok(h.title.length>1);assert.ok(h.body.length>100,`${group}:${id}`);}
   }

@@ -1,10 +1,11 @@
 import * as E from './engine.mjs';
 import * as V from './views.mjs';
 import * as Store from './storage.mjs';
-import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, BONDS, VENTURES, DAY, OFFLINE_LIMIT, RELEASE } from './data.mjs';
+import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, BONDS, VENTURES, DAY, OFFLINE_LIMIT, RELEASE, PROGRAMME_CHOICES } from './data.mjs';
 import { icon, mark } from './icons.mjs';
 import {help} from './help.mjs';
 import {previewBuilding} from './planning.mjs';
+import {programmeOffer,startProgramme,reserveProgrammeMaterials} from './campaign.mjs';
 
 const app = document.querySelector('#app'), dialog = document.querySelector('#dialog');
 const leaseKey = 'null-economy:lease', sessionId = globalThis.crypto?.randomUUID?.() || String(Math.random());
@@ -68,7 +69,7 @@ function render(live=false) {
   const content = ui.tab === 'saves' ? V.savesView(game,ui,saves()) : ui.tab === 'guide' ? V.guide(game) : !game ? '' :
     ui.tab === 'overview' ? V.overview(game,ui) : ui.tab === 'production' ? V.production(game,ui) : ui.tab === 'market' ? V.market(game,ui) :
     ui.tab === 'finance' ? V.finance(game,ui) : ui.tab === 'research' ? V.researchView(game,ui) : ui.tab === 'contracts' ? V.contracts(game) :
-    ui.tab === 'journal' ? V.journal(game) : ui.tab === 'statistics' ? V.statistics(game) : V.more(game);
+    ui.tab === 'programmes' ? V.programmes(game) : ui.tab === 'journal' ? V.journal(game) : ui.tab === 'statistics' ? V.statistics(game) : V.more(game);
   if (game && ui.screen === 'game') writeView(V.frame(game,ui,content),live);
   else app.innerHTML = `<div class="shell"><header class="topbar"><button class="brand" data-action="menu">${mark()}NULL</button><button class="small" data-action="menu">Zurück</button></header><main id="content" class="mt24">${content}</main></div>`;
 }
@@ -87,7 +88,7 @@ function showDiscoveries(oldTier) {
   const b = Object.values(BUILDINGS).filter(d => d.tier > oldTier && d.tier <= game.tier);
   const resources = Object.values(RESOURCES).filter(d => d.tier > oldTier && d.tier <= game.tier);
   const research = Object.values(RESEARCH).filter(d => d.tier > oldTier && d.tier <= game.tier);
-  const body = `<p>Dein Unternehmen hat einen neuen Horizont erreicht: <strong>${TIERS[game.tier].name}</strong>.</p><div class="divider"></div><div class="eyebrow">Neu entdeckt</div><p>${b.map(d => `${icon(d.icon)} ${d.name}`).join('<br>')}</p><p><strong>Neue Waren:</strong> ${resources.map(d=>d.name).join(', ')}.</p>${oldTier<1?'<p>Außerdem: Banken, Börse, Anleihen, Beteiligungen, Forschungsinstitute und Unternehmensstrategien.</p>':''}${research.length?`<p>${research.length} neue Forschungszweige warten auf dich.</p>`:''}<p>Dein Fortschritt bleibt freigeschaltet, auch wenn dein Vermögen später schwankt.</p>`;
+  const body = `<p>Dein Unternehmen hat einen neuen Horizont erreicht: <strong>${TIERS[game.tier].name}</strong>.</p><div class="divider"></div><div class="eyebrow">Neu entdeckt</div><p>${b.map(d => `${icon(d.icon)} ${d.name}`).join('<br>')}</p><p><strong>Neue Waren:</strong> ${resources.map(d=>d.name).join(', ')}.</p>${oldTier<1?'<p>Außerdem: Banken, Börse, Anleihen, Beteiligungen, Forschungsinstitute und Unternehmensstrategien.</p>':''}${oldTier<3&&game.tier>=3?'<p>Außerdem: langfristige Holdingprogramme mit dauerhafter Spezialisierung.</p>':''}${research.length?`<p>${research.length} neue Forschungszweige warten auf dich.</p>`:''}<p>Dein Fortschritt bleibt freigeschaltet, auch wenn dein Vermögen später schwankt.</p>`;
   openDialog('Die Welt wird größer.',body); return true;
 }
 
@@ -239,6 +240,13 @@ async function action(button) {
   if(action==='export'){Store.exportFile(game);toast('Spielstand als Datei exportiert.');return;}
   if(action==='rename'){openDialog('Ein Name für deine Idee.',`<label class="mt16" for="rename">Unternehmensname</label><input id="rename" type="text" value="${V.esc(game.name)}" maxlength="36">`,()=>{game.name=document.querySelector('#rename').value.trim().slice(0,36)||'Mein Unternehmen';finish(Eresult('Unternehmen umbenannt.'));},'Speichern');return;}
   if(action==='dismissTutorial'){game.tutorial=false;finish(Eresult('Die Einführung ist in der Spielanleitung weiter verfügbar.'));return;}
+  if(action==='startProgramme'){
+    const chapter=programmeOffer(game),choice=PROGRAMME_CHOICES[id];if(!chapter||!choice)return;
+    openDialog('Dein Schwerpunkt für dieses Kapitel.',`<p><strong>${V.esc(chapter.name)}: ${choice.name} +${chapter.bonus[id]} %</strong> dauerhaft nach Abschluss.</p><p>${choice.description}</p><p>Jetzt einmalig ${V.money(chapter.cash)}, ${V.number(chapter.points)} Forschungspunkte und die angezeigten Materialien investieren? Laufzeit: ${V.duration(chapter.duration)} echte Zeit. Die Wahl ist verbindlich.</p>`,()=>finish(startProgramme(game,id)),'Programm starten');return;
+  }
+  if(action==='programmeReserve'){
+    openDialog('Materialreserven aufbauen?','<p>Die Marktregeln der Projektwaren werden auf die benötigten Vorräte angehoben. Laufende automatische Einkäufe verwenden freie Betriebskasse. Höhere bestehende Reserven bleiben erhalten.</p>',()=>finish(reserveProgrammeMaterials(game,E.warehouseCapacity(game))),'Bevorratung einrichten');return;
+  }
   if(action==='goLab'){ui.productionTab='infra';go('production');return;}
   if(action==='preview'){openBuildingPreview(id);return;}
   if(action==='previewQuantity'){
@@ -270,7 +278,7 @@ async function action(button) {
   if(action==='property'){finish(E.propertyTrade(game,id,ui.qty,side),oldTier);return;}
   if(action==='emergency'){finish(E.emergencyAid(game));return;}
   if(action==='restructure'){
-    openDialog('Ein tragfähiger Neustart.',`<p>Eine Sanierung gibt <strong>alle Produktionsanlagen, Infrastruktur, Waren und Finanzanlagen</strong> ab und löscht sämtliche Schulden. Du beginnst mit 600 €, einer kleinen Materialreserve und einem Holzfäller.</p><p>Forschung, bereits entdeckte Inhalte, Meilensteine und Vermächtnispunkte bleiben erhalten. Deine Reputation fällt auf 15. Exportiere deinen Stand vorher, wenn du ihn behalten möchtest.</p>`,()=>{const next=E.restructure(game);if(next){game=next;ui.tab='overview';ui.open.clear();finish(Eresult('Die Sanierung ist abgeschlossen. Dein Wissen bleibt.'));}else toast('Nutze zuerst vorhandene liquide Mittel. Sanierung ist nur bei Überschuldung und fast leerer Kasse möglich.',true);},'Sanierung durchführen');return;
+    openDialog('Ein tragfähiger Neustart.',`<p>Eine Sanierung gibt <strong>alle Produktionsanlagen, Infrastruktur, Waren und Finanzanlagen</strong> ab und löscht sämtliche Schulden. Du beginnst mit 600 €, einer kleinen Materialreserve und einem Holzfäller.</p><p>Forschung, bereits entdeckte Inhalte, Meilensteine, Vermächtnispunkte und Holdingprogramme bleiben erhalten. Deine Reputation fällt auf 15. Exportiere deinen Stand vorher, wenn du ihn behalten möchtest.</p>`,()=>{const next=E.restructure(game);if(next){game=next;ui.tab='overview';ui.open.clear();finish(Eresult('Die Sanierung ist abgeschlossen. Dein Wissen bleibt.'));}else toast('Nutze zuerst vorhandene liquide Mittel. Sanierung ist nur bei Überschuldung und fast leerer Kasse möglich.',true);},'Sanierung durchführen');return;
   }
   if(action==='buyOption'){
     const q=E.optionQuote(game,ui.optionResource,ui.optionType,ui.qty,ui.optionDays),resource=ui.optionResource,type=ui.optionType,quantity=ui.qty,days=ui.optionDays;
@@ -311,7 +319,7 @@ async function action(button) {
     finish(Eresult(`Lager verkauft: ${V.money(total)}. Vorprodukte können jetzt fehlen.`),oldTier);return;
   }
   if(action==='prestige'){
-    openDialog('Das nächste Kapitel.',`<p>Eine neue Holding setzt dein Unternehmen, Geld, Anlagen, Forschung und Finanzprodukte zurück. Du erhältst <strong>${E.prestigeReward(game)} Vermächtnispunkte</strong>.</p><p>Alle bisherigen Punkte bleiben: dauerhaft +8 % Produktion und +4 % Forschung je Punkt. Exportiere vor diesem Schritt deinen Spielstand.</p>`,()=>{const next=E.prestige(game);if(next){game=next;ui.tab='overview';finish(Eresult('Eine neue Geschichte beginnt.'));}},'Neue Holding gründen');return;
+    openDialog('Das nächste Kapitel.',`<p>Eine neue Holding setzt dein Unternehmen, Geld, Anlagen, Forschung und Finanzprodukte zurück. Du erhältst <strong>${E.prestigeReward(game)} Vermächtnispunkte</strong>.</p><p>Alle bisherigen Punkte bleiben: dauerhaft +8 % Produktion und +4 % Forschung je Punkt. Abgeschlossene und laufende Holdingprogramme bleiben ebenfalls erhalten. Exportiere vor diesem Schritt deinen Spielstand.</p>`,()=>{const next=E.prestige(game);if(next){game=next;ui.tab='overview';finish(Eresult('Eine neue Geschichte beginnt.'));}},'Neue Holding gründen');return;
   }
 }
 const Eresult=message=>({ok:true,message});
