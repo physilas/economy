@@ -126,7 +126,9 @@ export function capacity(s) {
   const powerBonus = 1 + s.research.energy * 0.15;
   const cleanEnergy = 6 + s.infra.solar * 20 * powerBonus * (s.event?.solar || 1);
   const potentialEnergy = cleanEnergy + s.infra.power * 25 * powerBonus;
-  const availableEnergy = cleanEnergy + (s.inventory.coal > 0.001 ? s.infra.power * 25 * powerBonus : 0);
+  const fullLoadFuel = s.infra.power * 4 * STEP / HOUR;
+  const fuelAvailability = fullLoadFuel ? Math.min(1,s.inventory.coal/fullLoadFuel) : 1;
+  const availableEnergy = cleanEnergy + s.infra.power * 25 * powerBonus * fuelAvailability;
   const transport = (12 + s.infra.transport * 20) * (1 + s.research.logistics * 0.2) * (s.event?.freight || 1);
   return { staff, workers: workforce(s), energy, cleanEnergy, potentialEnergy, availableEnergy, freight, transport, pollution, wages,
     staffing: staff ? Math.min(1, workforce(s) / staff) : 1,
@@ -145,15 +147,17 @@ export function buildingRate(s, id, offline = false) {
   for (const [r, q] of Object.entries(b.input)) {
     if (s.inventory[r] < q * own.active * mult * STEP / HOUR) supply = Math.min(supply, s.inventory[r] / (q * own.active * mult * STEP / HOUR || 1));
   }
-  const r = Object.keys(b.output)[0];
-  const storage = s.inventory[r] >= warehouseCapacity(s) - 0.01 ? 0 : 1;
-  let utilization = own.active ? global * supply * storage : 0;
+  let storage=1;
+  for(const[r,q]of Object.entries(b.output))storage=Math.min(storage,Math.max(0,warehouseCapacity(s)-s.inventory[r])/(q*own.active*mult*STEP/HOUR||1));
+  const wages=own.active*b.wage*(1+own.level*.08)*POLICIES[s.policy].wage*STEP/HOUR;
+  const cashAvailability=wages?Math.min(1,s.cash/wages):1;
+  let utilization = own.active ? Math.min(global,supply,storage,cashAvailability) : 0;
   const outValue = sum(Object.fromEntries(Object.entries(b.output).map(([k, v]) => [k, v * price(s, k)])));
   const inValue = sum(Object.fromEntries(Object.entries(b.input).map(([k, v]) => [k, v * price(s, k)])));
   const margin = (outValue - inValue) * mult - b.wage * (1 + own.level * 0.08) * POLICIES[s.policy].wage;
   const guarded=!!s.profitGuard&&((outValue*(1-feeRate(s)-.008)-inValue*(1+feeRate(s)+.008))*mult-b.wage*(1+own.level*.08)*POLICIES[s.policy].wage)<0;
   if(guarded)utilization=0;
-  return { utilization, mult, units: own.active * mult * utilization, margin, global, supply, storage,guarded };
+  return { utilization, mult, units: own.active * mult * utilization, margin, global, supply, storage,cash:cashAvailability,guarded };
 }
 
 export function buildQuote(s, id, amount = 1, infrastructure = false) {

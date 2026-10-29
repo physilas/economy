@@ -47,6 +47,12 @@ test('user-supplied names are escaped throughout generated markup',()=>{
   }
 });
 
+test('recipe cards scale inputs and outputs with the same production bonuses',()=>{
+  const s=createGame('Recipes',0,42);s.tier=2;s.research.efficiency=1;s.buildings.sawmill.level=1;
+  const html=V.production(s,ui),start=html.indexOf('<h3>Sägewerk'),end=html.indexOf('</article>',start),card=html.slice(start,end);
+  assert.ok(card.includes('12,7 Holz'));assert.ok(card.includes('7,6 Bretter'));
+});
+
 test('every precached PWA file exists and manifest uses relative paths',async()=>{
   const worker=await readFile(new URL('../sw.js',import.meta.url),'utf8');
   const paths=worker.match(/const FILES = \[(.*?)\];/s)[1].match(/'[^']+'/g).map(p=>p.slice(1,-1));
