@@ -9,6 +9,7 @@ import {programmeOffer,startProgramme,reserveProgrammeMaterials} from './campaig
 import {normalizeUI} from './ui-state.mjs';
 import {advanceOffline,advanceOfflineBatched} from './offline.mjs';
 import {installHoldControls,lockZoom} from './controls.mjs';
+import {morph,patchView} from './render.mjs';
 
 const app = document.querySelector('#app'), dialog = document.querySelector('#dialog');
 const leaseKey = 'null-economy:lease', sessionId = globalThis.crypto?.randomUUID?.() || String(Math.random());
@@ -49,27 +50,11 @@ function claimLease(force = false) {
 }
 function releaseLease() { try { if (readLease()?.id === sessionId) localStorage.removeItem(leaseKey); } catch { /* Storage warning is handled by saving. */ } }
 
-function morph(oldNode,newNode){
-  if(oldNode.nodeType!==newNode.nodeType||oldNode.nodeName!==newNode.nodeName){oldNode.replaceWith(newNode.cloneNode(true));return;}
-  if(oldNode.nodeType===Node.TEXT_NODE){if(oldNode.data!==newNode.data)oldNode.data=newNode.data;return;}
-  if(oldNode.nodeType!==Node.ELEMENT_NODE)return;
-  if(oldNode===document.activeElement&&['INPUT','SELECT','TEXTAREA'].includes(oldNode.tagName))return;
-  if(oldNode.hasAttribute('data-preserve-text')&&oldNode.textContent)return;
-  const preserveOpen=oldNode.tagName==='DETAILS'&&oldNode.hasAttribute('data-preserve-open');
-  for(const attribute of [...oldNode.attributes])if(!(preserveOpen&&attribute.name==='open')&&!newNode.hasAttribute(attribute.name))oldNode.removeAttribute(attribute.name);
-  for(const attribute of newNode.attributes)if(!(preserveOpen&&attribute.name==='open')&&oldNode.getAttribute(attribute.name)!==attribute.value)oldNode.setAttribute(attribute.name,attribute.value);
-  const oldChildren=[...oldNode.childNodes],newChildren=[...newNode.childNodes];
-  for(let i=0;i<Math.max(oldChildren.length,newChildren.length);i++){
-    if(!newChildren[i])oldChildren[i].remove();else if(!oldChildren[i])oldNode.append(newChildren[i].cloneNode(true));else morph(oldChildren[i],newChildren[i]);
-  }
-}
 function writeView(html,live){
   if(!live){app.innerHTML=html;return;}
-  const template=document.createElement('template');template.innerHTML=html;
-  if(app.childNodes.length===1&&template.content.childNodes.length===1)morph(app.firstChild,template.content.firstChild);
-  else app.innerHTML=html;
+  patchView(app,html);
 }
-function render(live=false) {
+function render(live=true) {
   if (busy) return;
   normalizeUI(ui,game);
   if (ui.screen === 'menu') { app.innerHTML = V.menu(game,ui); return; }
@@ -405,7 +390,7 @@ document.addEventListener('change',event=>{
     if(key==='amount')ui.amount=Math.round(E.clamp(Number(node.value)||1,1,1e14));
     else if(key==='fixedDays')ui.fixedDays=Number(node.value);
     else if(key==='buildFilter')ui.buildFilter=node.value;
-    else if(['optionResource','optionType','planStock','chain','bankPlanProduct','bankPlanDirection','analysisResource','analysisStock'].includes(key))ui[key]=node.value;
+    else if(['optionResource','optionType','planStock','chain','bankPlanProduct','bankPlanDirection','analysisResource','analysisStock','planMode'].includes(key))ui[key]=node.value;
     else if(['optionDays','planPeriod','analysisHours'].includes(key))ui[key]=Number(node.value);
     render();
   }

@@ -1,0 +1,54 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="../style.css"><title>NULL Layout-Regressionsprüfung</title><body><button id="run" style="position:fixed;right:0;top:0;z-index:200">Layout prüfen</button><pre id="results" style="position:fixed;left:0;bottom:0;z-index:200;background:black;max-height:30vh;overflow:auto"></pre><div id="app"></div><script type="module">
+import * as V from '../src/views.mjs';
+import * as E from '../src/engine.mjs';
+import {normalizeUI} from '../src/ui-state.mjs';
+import {patchView} from '../src/render.mjs';
+import {installHoldControls} from '../src/controls.mjs';
+const root=document.querySelector('#app'),out=document.querySelector('#results');
+const s=E.createGame('Layoutprüfung',0,42);s.tier=11;s.cash=10000;
+const ui=normalizeUI({screen:'game',tab:'production',productionTab:'business',qty:1,amount:100,open:new Set()},s);
+const frame=()=>V.frame(s,ui,ui.tab==='production'?V.production(s,ui):ui.tab==='market'?V.market(s,ui):V.finance(s,ui));
+const draw=()=>patchView(root,frame());draw();
+const settle=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+const rect=el=>{const r=el.getBoundingClientRect();return [r.x,r.y,r.width,r.height];};
+const probes=()=>[...document.querySelectorAll('.compact-asset,.compact-asset button,.sticky-controls,.market-row,.market-actions button,.bank-heading,.bank-actions button')].map(rect);
+document.querySelector('#run').onclick=async()=>{
+  out.textContent='Prüfung läuft';const report=[];
+  for(const tab of ['production','market','finance']){
+    ui.tab=tab;ui.financeTab='bank';
+    let previous=null,shifts=0,max=0;
+    for(const count of [0,1,9,10,99,100,999,1000,9999,10000]){
+      s.buildings.lumber.count=count;s.buildings.lumber.active=count;s.infra.housing=count;
+      s.inventory.wood=count;s.banks.reserve=count*100;
+      s.cash=count===0?100000000:100000000/(count+1);
+      draw();await settle();const positions=probes();
+      if(previous)positions.forEach((r,i)=>r.forEach((value,j)=>{const delta=Math.abs(value-(previous[i]?.[j]??value));if(delta>.1){shifts++;max=Math.max(max,delta);}}));
+      previous=positions;
+    }
+    report.push(`${tab}: ${shifts} Verschiebungen, max. ${max.toFixed(2)} px`);
+  }
+  ui.tab='production';s.tier=0;s.cash=10000;s.buildings.lumber.count=1;s.buildings.lumber.active=1;draw();await settle();
+  const button=root.querySelector('[data-action="build"][data-id="lumber"]');button.focus({preventScroll:true});
+  s.tier=1;draw();await settle();
+  const preserved=button===root.querySelector('[data-action="build"][data-id="lumber"]')&&document.activeElement===button;
+  report.push(`DOM & Fokus bei Freischaltung: ${preserved?'OK':'FEHLER'}`);
+  s.tier=11;draw();await settle();window.scrollTo({top:500,behavior:'instant'});await settle();
+  const beforeScroll=window.scrollY;s.buildings.lumber.count=9999;s.cash=999999;draw();await settle();
+  report.push(`Scrollposition: ${window.scrollY===beforeScroll?'OK':'FEHLER'}`);
+  ui.tab='finance';draw();await settle();const tabs=root.querySelector('.finance-tabs');tabs.scrollLeft=100;const left=tabs.scrollLeft;
+  s.cash=1;draw();await settle();report.push(`Finanzreiter in zwei Zeilen: ${root.querySelector('.finance-tabs')===tabs&&tabs.scrollLeft===0&&getComputedStyle(tabs).gridTemplateRows.split(' ').length===2?'OK':'FEHLER'}`);
+  out.textContent=report.join('\n');document.documentElement.dataset.result=report.join('; ');
+  ui.tab='production';s.tier=11;s.cash=100000;s.buildings.lumber.count=9;s.buildings.lumber.active=9;draw();window.scrollTo({top:0,behavior:'instant'});
+};
+let hold=null,calls=0;
+const invoke=button=>{if(button.dataset.action==='build'){E.build(s,button.dataset.id,1);calls++;draw();}else if(button.dataset.action==='demolish'){E.demolish(s,button.dataset.id,1);calls++;draw();}};
+installHoldControls(document,{invoke});
+root.addEventListener('click',event=>{const button=event.target.closest('button[data-action]');if(!button)return;if(button.dataset.repeat)invoke(button);else if(button.dataset.action==='tab'){ui.tab=button.dataset.id;draw();window.scrollTo({top:0,behavior:'instant'});}else if(button.dataset.action==='productionTab'){ui.productionTab=button.dataset.id;draw();window.scrollTo({top:0,behavior:'instant'});}});
+root.addEventListener('change',event=>{if(event.target.dataset.setting==='planMode'){ui.planMode=event.target.value;draw();}});
+root.addEventListener('pointerdown',event=>{
+  const button=event.target.closest('button[data-repeat]');if(!button)return;
+  hold={button,rect:rect(button),max:0,calls};
+  const sample=()=>{if(!hold)return;const current=rect(hold.button);hold.max=Math.max(hold.max,...current.map((v,i)=>Math.abs(v-hold.rect[i])));requestAnimationFrame(sample);};sample();
+});
+document.addEventListener('pointerup',()=>{if(hold){out.textContent+=`\nHaltekauf: ${calls-hold.calls} Schritte · ${hold.max.toFixed(2)} px · Knopf ${hold.button.isConnected?'erhalten':'ersetzt'}`;hold=null;}});
+</script></body></html>

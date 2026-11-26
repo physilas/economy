@@ -295,7 +295,7 @@ function refreshProfitGuard(s,context){
   }
 }
 
-function produce(s, seconds, context) {
+function produce(s, seconds, context, flows=null) {
   const h = seconds / HOUR, c = context.capacity;
   const desiredCoalPower = Math.max(0, c.energy - c.cleanEnergy);
   const coalEnergy=s.infra.power*infrastructureYield(s,'power','energy');
@@ -303,6 +303,7 @@ function produce(s, seconds, context) {
   const coalWanted = s.infra.power * 4 * h * powerFraction;
   const coalRatio = coalWanted ? Math.min(1, s.inventory.coal / coalWanted) : 1;
   s.inventory.coal = Math.max(0, s.inventory.coal - coalWanted * coalRatio);
+  if(flows)flows.input.coal+=coalWanted*coalRatio;
   const actualPower = c.cleanEnergy + coalEnergy * powerFraction * coalRatio;
   const global = Math.min(c.staffing, c.energy ? actualPower / c.energy : 1, c.logistics, 1) * c.environment;
   for (const entry of context.entries) {
@@ -314,8 +315,8 @@ function produce(s, seconds, context) {
     if (wages > 0) factor = Math.min(factor, s.cash / wages);
     factor = clamp(factor, 0, 1);
     if (factor < 1e-9) continue;
-    for (const [r, q] of entry.input) s.inventory[r] = Math.max(0, s.inventory[r] - q * seconds * factor);
-    for (const [r, q] of entry.output) { const made = q * seconds * factor; s.inventory[r] += made; s.stats.produced += made; }
+    for (const [r, q] of entry.input) { const used=q*seconds*factor;s.inventory[r]=Math.max(0,s.inventory[r]-used);if(flows)flows.input[r]+=used; }
+    for (const [r, q] of entry.output) { const made = q * seconds * factor; s.inventory[r] += made; s.stats.produced += made;if(flows)flows.output[r]+=made; }
     expense(s, wages * factor);
   }
   const labCost = context.researchCost * h;
@@ -619,6 +620,18 @@ export function supplyPlan(s){
   }
   input.coal+=s.infra.power*4;
   return Object.keys(RESOURCES).filter(r=>RESOURCES[r].tier<=s.tier&&(output[r]>0||input[r]>0||s.inventory[r]>.01)).map(id=>({id,output:output[id],input:input[id],net:output[id]-input[id],producers:producers[id],hours:input[id]>output[id]?s.inventory[id]/(input[id]-output[id]):Infinity}));
+}
+
+// Use the production calculation itself on an isolated snapshot. This includes
+// shared suppliers within the same step, fuel, cash, storage and margin guard.
+export function currentSupplyPlan(s){
+  const copy={...s,inventory:{...s.inventory},stats:{...s.stats},hourLedger:{...s.hourLedger},dayLedger:{...s.dayLedger}};
+  const context=productionContext(copy,false),flows={input:empty(RESOURCES),output:empty(RESOURCES)};
+  refreshProfitGuard(copy,context);produce(copy,STEP,context,flows);
+  return supplyPlan(s).map(row=>{
+    const input=flows.input[row.id]*HOUR/STEP,output=flows.output[row.id]*HOUR/STEP,net=output-input;
+    return {...row,input,output,net,hours:net<0?s.inventory[row.id]/-net:Infinity};
+  });
 }
 export function setupSupplies(s,id){
   const b=BUILDINGS[id],own=s.buildings[id];if(!b||!own.active||!Object.keys(b.input).length)return fail('Ein aktiver Verarbeitungsbetrieb wird benötigt.');

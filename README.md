@@ -38,7 +38,7 @@ Browserdaten sind lokal: Wer sie löscht, verliert auch lokale Spielstände. **E
 - Mengen und Investitionssummen bleiben beim Scrollen oben sichtbar. ×10 und ÷10 ändern die Größenordnung. Gedrückthalten wiederholt Aktionen; Loslassen, Scrollen und App-Wechsel stoppen die Wiederholung.
 - Alle kaufen / verkaufen je Ware, Aktie und Immobilie; alles einzahlen / abheben je Bankkonto. Maximal bauen und komplett abbauen im Info-Dialog.
 - Hauptbereiche: Übersicht, Produktion, Markt, Finanzen, Analyse und Mehr. Forschung, Holdingprogramme, Aufträge und Chronik bleiben unter Mehr erreichbar.
-- Produktion → Ketten zeigt vollständige Lieferketten mit kleinsten ganzzahligen Grundverhältnissen und einer Live-Mengenplanung.
+- Produktion → Planung zeigt aktuelle Produktion, Verbrauch und Saldo je Ware sowie Sollmengen bei voller Auslastung. Produktion → Ketten zeigt vollständige Lieferketten mit kleinsten ganzzahligen Grundverhältnissen und einer Live-Mengenplanung.
 - Analyse: Vermögen, Liquidität, Waren- und Depotwert, Schulden, Umsatz, laufende Kosten, Zinsen, Dividenden, Mieten, Steuern, Produktions- und Forschungserträge, Kapazitätsversorgung, Warenbilanzen, Kurse und Betriebsdetails. Historische neue Kennzahlen beginnen ab dem Update; vorhandene Verläufe bleiben erhalten.
 - Spielstandsformat und Speicherschlüssel bleiben unverändert. Anzahl, Aktivierung, Ausbau, Buchwerte, Forschung, Freischaltungen, Finanzpositionen und Holdingfortschritt alter Stände werden übernommen.
 
@@ -82,7 +82,7 @@ npm run test:month
 python3 -m http.server 4187 --bind 127.0.0.1
 ```
 
-Node.js 22 oder neuer wird für die Tests benötigt, Python nur für eine lokale HTTP-Vorschau. Die App selbst hat keine Paketabhängigkeiten. Der Service Worker benötigt HTTPS oder localhost.
+Node.js 22 oder neuer wird für die Tests benötigt, Python nur für eine lokale HTTP-Vorschau. Die App selbst hat keine Paketabhängigkeiten. Unter `http://127.0.0.1:4173/tests/layout.html` prüft „Layout prüfen“ im echten Browser feste Positionen bei wechselnden Beständen und Guthaben, Knopfidentität, Fokus, Scrollposition und zweizeilige Finanzreiter. Gedrückthalten von + / − misst zusätzlich Layoutbewegungen während echter Bauschritte. Der Service Worker benötigt HTTPS oder localhost.
 
 Die Tests prüfen unter anderem deterministische Live-/Offline-Berechnung, Stundenerträge beim Halbsekundentakt, Konstruktion, Preiswirkung, unmögliche Rückverkaufsgewinne, Kredite, Zinsen, Steuern, Fälligkeiten, Optionsmathematik, Wiederanlage, Immobilien, Berichte, versteckte Freischaltungen, Schema-Validierung, beschädigte Sicherungen und eine simulierte Offline-Woche. Zusätzliche Regressionstests prüfen identische Ergebnisse des Margenwächters bei unterschiedlichen Rechenschritten, Offlineboni bei kurzen Abwesenheiten, sehr große Vermögen beim Speichern/Laden, korrekte Bedienzustände nach Spielstandwechseln sowie einen vollständigen, gegen fehlgeschlagene Updates abgesicherten Offline-Cache. GitHub Actions führt die Prüfungen bei jedem Push aus.
 

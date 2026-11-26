@@ -6,7 +6,7 @@ export function normalizeUI(ui,s){
   const tier=s?.tier||0;
   const choose=(key,values,fallback)=>{if(!values.includes(ui[key]))ui[key]=fallback;};
   choose('tab',['overview','production','market','contracts','journal','statistics','analysis','legacy','more','saves','guide',...(tier>=1?['finance','research']:[]),...(s?.campaign?.unlocked?['programmes']:[])],'overview');
-  choose('productionTab',['business','infra','chains',...(tier>=1?['planner','strategy']:[])],'business');
+  choose('productionTab',['business','infra','chains','planner',...(tier>=1?['strategy']:[])],'business');
   choose('financeTab',['bank','stocks','bonds','ventures',...(tier>=2?['properties']:[]),...(tier>=3?['hedges']:[])],'bank');
   choose('buildFilter',['all','owned','raw'],'all');
   choose('marketFilter',['all','auto'],'all');
@@ -19,6 +19,7 @@ export function normalizeUI(ui,s){
   choose('planPeriod',[1,5,10],1);
   choose('qty',[1,10,100,1000,10000],1);
   choose('analysisTab',['company','production','markets','income','balance'],'company');
+  choose('planMode',['actual','planned'],'actual');
   choose('analysisHours',[24,48,96],48);
   choose('bankPlanProduct',['reserve','savings','fixed'],'reserve');
   choose('bankPlanDirection',['deposit','withdraw'],'deposit');

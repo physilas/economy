@@ -12,7 +12,7 @@ a { color:inherit; text-underline-offset:4px; }
 button,input,select { border-radius:8px; }
 button { min-height:44px; border:1px solid var(--line); background:transparent; padding:10px 16px; transition:background .15s,border-color .15s; }
 button:hover:not(:disabled) { border-color:var(--dim); background:var(--panel2); }
-button:active:not(:disabled) { transform:translateY(1px); }
+button:active:not(:disabled) { transform:none; }
 button.primary { background:var(--text); color:var(--bg); border-color:var(--text); font-weight:600; }
 button.primary:hover:not(:disabled) { background:#fff; border-color:#fff; }
 button.ghost { border-color:transparent; }
@@ -683,3 +683,57 @@ dialog p { margin-top:10px; }
 @media (max-width:360px) { .bank-card .bank-heading .bank-value { font-size:16px; } }
 .chart-readout { position:absolute; bottom:10px; left:10px; right:10px; color:var(--text); background:var(--panel); font-size:10px; pointer-events:none; }
 .chart-readout:empty { display:none; }
+
+/* Values and pressed states must never move a transaction target. */
+html { scrollbar-gutter:stable; scroll-behavior:auto; }
+button,input,select,.number,.clock { font-variant-numeric:tabular-nums; }
+.compact-asset { grid-template-columns:minmax(0,1fr) 6ch auto; height:50px; }
+.asset-name h3 { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+.asset-count { width:6ch; min-width:6ch; line-height:17px; white-space:nowrap; }
+.asset-count small { line-height:10px; height:10px; }
+.asset-count .empty-level { visibility:hidden; }
+.asset-controls { flex-shrink:0; }
+.asset-controls button { width:66px; min-width:66px; height:36px; white-space:nowrap; }
+.production-summary { display:grid; grid-template-columns:minmax(0,1fr) 215px; align-items:center; }
+.production-balance { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; }
+.production-summary select { width:100%; min-width:0; }
+.clock { min-width:17ch; text-align:right; white-space:nowrap; flex-shrink:0; }
+.market-price,.market-stock,.stock-position,.bank-value,.bank-heading,.rate { white-space:nowrap; }
+.finance-control-stack > .toolbar > span { width:22ch; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.quantity-controls output { width:7ch; min-width:7ch; }
+.planning-toolbar { margin-top:8px; }
+@media (max-width:780px) {
+  .compact-asset { height:48px; }
+  .clock { min-width:16ch; }
+  .production-summary { grid-template-columns:minmax(0,1fr) 185px; }
+}
+@media (max-width:560px) {
+  .asset-controls button { width:54px; min-width:54px; font-size:10px; padding:5px 3px; }
+  .compact-asset { grid-template-columns:minmax(0,1fr) 6ch auto; }
+  .production-summary { grid-template-columns:1fr; grid-template-rows:17px 36px; gap:5px; }
+  .production-balance { display:block; }
+  .production-summary select { height:36px; }
+  .asset-name { gap:4px; }
+  .asset-name > .icon { width:14px; height:14px; }
+  .asset-name .info-button { width:22px; }
+  .asset-name h3 { font-size:11px; }
+}
+@media (max-width:360px) {
+  .asset-controls button { width:48px; min-width:48px; font-size:9px; }
+  .compact-asset { gap:4px; padding:4px 6px; }
+  .asset-name { gap:3px; }
+}
+.production-controls { display:grid; grid-template-columns:minmax(0,1fr) auto; }
+.production-controls > .segmented { min-width:0; width:max-content; max-width:100%; }
+.finance-control-stack > .toolbar { display:grid; grid-template-columns:minmax(0,1fr) 22ch; }
+.finance-control-stack .finance-tabs { min-width:0; width:max-content; max-width:100%; }
+.bank-heading { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,21ch); }
+.bank-heading h3 { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bank-heading .bank-value { min-width:0; overflow:hidden; text-overflow:ellipsis; text-align:right; }
+@media (max-width:560px) {
+  .production-controls,.finance-control-stack > .toolbar { grid-template-columns:minmax(0,1fr); }
+  .production-controls > .segmented,.finance-control-stack .finance-tabs { width:100%; }
+}
+/* Two reserved rows keep every finance section visible without sideways scrolling. */
+.finance-control-stack .finance-tabs { display:grid; width:100%; grid-template-columns:repeat(var(--tab-columns,3),minmax(0,1fr)); grid-template-rows:repeat(2,32px); gap:3px; overflow:visible; }
+.finance-tabs button { min-width:0; padding:5px 3px; white-space:nowrap; font-size:11px; }
