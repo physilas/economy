@@ -49,8 +49,8 @@ test('user-supplied names are escaped throughout generated markup',()=>{
 
 test('recipe cards scale inputs and outputs with the same production bonuses',()=>{
   const s=createGame('Recipes',0,42);s.tier=2;s.research.efficiency=1;s.buildings.sawmill.level=1;
-  const html=V.production(s,ui),start=html.indexOf('<h3>Sägewerk'),end=html.indexOf('</article>',start),card=html.slice(start,end);
-  assert.ok(card.includes('12,7 Holz'));assert.ok(card.includes('7,6 Bretter'));
+  const card=V.buildingDetails(s,ui,'sawmill');
+  assert.ok(card.includes('34,6 Holz'));assert.ok(card.includes('17,3 Bretter'));
 });
 
 test('large planning costs stay readable and bounded on small screens',()=>{

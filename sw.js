@@ -1,6 +1,7 @@
-/* All paths are relative to this worker, including on GitHub project Pages. */
-const VERSION = 'null-v2.1.2';
-const FILES = ['./','./index.html','./style.css','./manifest.webmanifest','./src/app.mjs','./src/views.mjs','./src/icons.mjs','./src/data.mjs','./src/engine.mjs','./src/storage.mjs','./src/worker.mjs','./src/math.mjs','./src/help.mjs','./src/planning.mjs','./src/campaign.mjs','./src/ui-state.mjs','./src/offline.mjs','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
+/* Release 2.2: compact controls, exact chains, half-second cash flows and held fast-forward with touch chart values.
+   All paths are relative to this worker, including on GitHub project Pages. */
+const VERSION = 'null-v2.2.0';
+const FILES = ['./','./index.html','./style.css','./manifest.webmanifest','./src/app.mjs','./src/views.mjs','./src/icons.mjs','./src/data.mjs','./src/engine.mjs','./src/storage.mjs','./src/worker.mjs','./src/math.mjs','./src/help.mjs','./src/planning.mjs','./src/campaign.mjs','./src/ui-state.mjs','./src/offline.mjs','./src/chains.mjs','./src/controls.mjs','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
 const absolute = path => new URL(path,self.location.href).href;
 
 self.addEventListener('install',event=>{

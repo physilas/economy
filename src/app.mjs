@@ -8,11 +8,12 @@ import {previewBuilding} from './planning.mjs';
 import {programmeOffer,startProgramme,reserveProgrammeMaterials} from './campaign.mjs';
 import {normalizeUI} from './ui-state.mjs';
 import {advanceOffline,advanceOfflineBatched} from './offline.mjs';
+import {installHoldControls,lockZoom} from './controls.mjs';
 
 const app = document.querySelector('#app'), dialog = document.querySelector('#dialog');
 const leaseKey = 'null-economy:lease', sessionId = globalThis.crypto?.randomUUID?.() || String(Math.random());
-let game = null, running = false, busy = false, pending = null, toastTimer, lastSaveAttempt = 0, worker = null, registration = null, installPrompt = null, queuedDiscovery = null, interactingUntil = 0;
-const ui = { screen:'menu', tab:'overview', productionTab:'business', financeTab:'bank', buildFilter:'all', marketFilter:'all', qty:1, amount:100, fixedDays:20,optionResource:'wood',optionType:'put',optionDays:3,planStock:'sylva',planPeriod:1, open:new Set(), offlineReady:false, updateReady:false, lastSaved:0, saveError:'', previousScreen:'menu' };
+let game = null, running = false, busy = false, pending = null, toastTimer, lastSaveAttempt = 0, worker = null, registration = null, installPrompt = null, queuedDiscovery = null, speedPointer = null, repeating = false, detailBuilding = null;
+const ui = { speed:1, screen:'menu', tab:'overview', productionTab:'business', financeTab:'bank', buildFilter:'all', marketFilter:'all', qty:1, amount:100, fixedDays:20,optionResource:'wood',optionType:'put',optionDays:3,planStock:'sylva',planPeriod:1, open:new Set(), offlineReady:false, updateReady:false, lastSaved:0, saveError:'', previousScreen:'menu' };
 
 function toast(message, error = false) {
   const node = document.querySelector('#toast'); node.textContent = message; node.className = `visible${error ? ' error' : ''}`;
@@ -52,8 +53,11 @@ function morph(oldNode,newNode){
   if(oldNode.nodeType!==newNode.nodeType||oldNode.nodeName!==newNode.nodeName){oldNode.replaceWith(newNode.cloneNode(true));return;}
   if(oldNode.nodeType===Node.TEXT_NODE){if(oldNode.data!==newNode.data)oldNode.data=newNode.data;return;}
   if(oldNode.nodeType!==Node.ELEMENT_NODE)return;
-  for(const attribute of [...oldNode.attributes])if(!newNode.hasAttribute(attribute.name))oldNode.removeAttribute(attribute.name);
-  for(const attribute of newNode.attributes)if(oldNode.getAttribute(attribute.name)!==attribute.value)oldNode.setAttribute(attribute.name,attribute.value);
+  if(oldNode===document.activeElement&&['INPUT','SELECT','TEXTAREA'].includes(oldNode.tagName))return;
+  if(oldNode.hasAttribute('data-preserve-text')&&oldNode.textContent)return;
+  const preserveOpen=oldNode.tagName==='DETAILS'&&oldNode.hasAttribute('data-preserve-open');
+  for(const attribute of [...oldNode.attributes])if(!(preserveOpen&&attribute.name==='open')&&!newNode.hasAttribute(attribute.name))oldNode.removeAttribute(attribute.name);
+  for(const attribute of newNode.attributes)if(!(preserveOpen&&attribute.name==='open')&&oldNode.getAttribute(attribute.name)!==attribute.value)oldNode.setAttribute(attribute.name,attribute.value);
   const oldChildren=[...oldNode.childNodes],newChildren=[...newNode.childNodes];
   for(let i=0;i<Math.max(oldChildren.length,newChildren.length);i++){
     if(!newChildren[i])oldChildren[i].remove();else if(!oldChildren[i])oldNode.append(newChildren[i].cloneNode(true));else morph(oldChildren[i],newChildren[i]);
@@ -72,17 +76,19 @@ function render(live=false) {
   const content = ui.tab === 'saves' ? V.savesView(game,ui,saves()) : ui.tab === 'guide' ? V.guide(game) : !game ? '' :
     ui.tab === 'overview' ? V.overview(game,ui) : ui.tab === 'production' ? V.production(game,ui) : ui.tab === 'market' ? V.market(game,ui) :
     ui.tab === 'finance' ? V.finance(game,ui) : ui.tab === 'research' ? V.researchView(game,ui) : ui.tab === 'contracts' ? V.contracts(game) :
-    ui.tab === 'programmes' ? V.programmes(game) : ui.tab === 'journal' ? V.journal(game) : ui.tab === 'statistics' ? V.statistics(game) : V.more(game);
+    ui.tab === 'programmes' ? V.programmes(game) : ui.tab === 'journal' ? V.journal(game) : ui.tab === 'statistics' ? V.statistics(game) : ui.tab==='analysis'?V.analysis(game,ui):ui.tab==='legacy'?V.legacyView(game):V.more(game);
   if (game && ui.screen === 'game') writeView(V.frame(game,ui,content),live);
   else app.innerHTML = `<div class="shell"><header class="topbar"><button class="brand" data-action="menu">${mark()}NULL</button><button class="small" data-action="menu">Zurück</button></header><main id="content" class="mt24">${content}</main></div>`;
 }
 
 function openDialog(title, body, onConfirm = null, confirmLabel = 'Bestätigen', cancelLabel = 'Abbrechen') {
+  stopFastForward();
+  detailBuilding=null;
   pending = onConfirm;
   dialog.innerHTML = `<button class="dialog-close" data-action="closeDialog" aria-label="Dialog schließen">${icon('close')}</button><h2 id="dialog-title">${title}</h2>${body}<div class="dialog-actions">${onConfirm ? `<button data-action="closeDialog">${cancelLabel}</button><button class="primary" data-action="confirmDialog">${confirmLabel}</button>` : '<button class="primary" data-action="closeDialog">Verstanden</button>'}</div>`;
   if (!dialog.open) dialog.showModal();
 }
-function closeDialog() { dialog.close(); pending = null;flushDiscovery(); }
+function closeDialog() { dialog.close(); pending = null;detailBuilding=null;flushDiscovery(); }
 function flushDiscovery(){if(queuedDiscovery!==null&&!dialog.open&&!busy&&running){const tier=queuedDiscovery;queuedDiscovery=null;setTimeout(()=>showDiscoveries(tier),0);}}
 
 function showDiscoveries(oldTier) {
@@ -96,9 +102,9 @@ function showDiscoveries(oldTier) {
 }
 
 function finish(result, oldTier = game?.tier) {
-  if (result?.message) toast(result.message,!result.ok);
-  if (game && result?.ok !== false) { E.checkProgress(game); E.checkAchievements(game); safeSave(); }
-  render();
+  if (!repeating&&result?.message) toast(result.message,!result.ok);
+  if (game && result?.ok !== false) { E.checkProgress(game); E.checkAchievements(game); if(!repeating)safeSave(); }
+  render(true);refreshBuildingDetails();
   if (oldTier !== undefined) showDiscoveries(oldTier);
 }
 
@@ -151,6 +157,7 @@ async function resume(s = game, force = false) {
 }
 
 function go(tab) {
+  stopFastForward();
   if (['research','finance'].includes(tab) && (!game || game.tier < 1)) return;
   ui.tab=tab; ui.screen=running?'game':'page'; render(); window.scrollTo({top:0});
   requestAnimationFrame(()=>document.querySelector('#content')?.focus({preventScroll:true}));
@@ -186,6 +193,7 @@ function installHelp() {
 async function action(button) {
   const action=button.dataset.action,id=button.dataset.id,side=button.dataset.side;
   if(busy || button.disabled)return;
+  if(action==='speed')return;
   if(action==='closeDialog'){closeDialog();return;}
   if(action==='confirmDialog'){
     const callback=pending;pending=null;
@@ -199,20 +207,30 @@ async function action(button) {
     try { game=Store.loadCurrent(game); }catch{}
     await resume();return;
   }
-  if(action==='menu'){if(running){E.advance(game,Date.now());safeSave();}running=false;releaseLease();ui.screen='menu';render();return;}
+  if(action==='menu'){stopFastForward();if(running){E.advance(game,Date.now());safeSave();}running=false;releaseLease();ui.screen='menu';render();return;}
   if(action==='tab'){go(id);return;}
   if(action==='saves'||action==='guide'){go(action);return;}
   if(action==='install'){installHelp();return;}
   if(action==='info'){
-    const item=help(id,game),paragraphs=item.body.match(/<p>[\s\S]*?<\/p>/g)||[item.body];
-    const body=paragraphs.length>2?paragraphs.slice(0,2).join('')+`<details class="help-more"><summary>Rechenregeln & Details</summary>${paragraphs.slice(2).join('')}</details>`:item.body;
-    openDialog(item.title,body);return;
+    const item=help(id,game);
+    if(id.startsWith('building:')){
+      const key=id.split(':')[1];
+      openDialog(item.title,V.buildingDetails(game,ui,key)+`<details class="help-more" data-preserve-open><summary>Rechenregeln & Details</summary>${item.body}</details>`);
+      detailBuilding=key;
+    }else if(id.startsWith('infra:')){
+      const key=id.split(':')[1];
+      openDialog(item.title,item.body+`<div class="row wrap mt8"><button data-action="bulkBuildInfra" data-id="${key}">Max. bauen</button><button data-action="bulkDemolishInfra" data-id="${key}">Alle abbauen</button></div>`);
+    }else openDialog(item.title,item.body);
+    return;
   }
+  if(action==='qtyScale'){ui.qty=E.clamp(ui.qty*Number(id),1,10000);render(true);return;}
+  if(action==='amountScale'){ui.amount=E.clamp(Math.round(ui.amount*Number(id)),1,1e14);render(true);return;}
   if(action==='qty'){ui.qty=Number(id);render();return;}
-  if(action==='amount'){ui.amount=E.clamp(ui.amount+Number(id),1,1e14);render();return;}
+  if(action==='amount'){ui.amount=E.clamp(ui.amount+Number(id),1,1e14);render(true);return;}
   if(action==='expand'){ui.open.has(id)?ui.open.delete(id):ui.open.add(id);render();return;}
-  if(['productionTab','financeTab','marketFilter'].includes(action)){ui[action]=id;if(action==='financeTab'&&id==='hedges'&&RESOURCES[ui.optionResource].tier>game.tier)ui.optionResource='wood';render();return;}
+  if(['productionTab','financeTab','marketFilter','analysisTab'].includes(action)){ui[action]=id;if(action==='financeTab'&&id==='hedges'&&RESOURCES[ui.optionResource].tier>game.tier)ui.optionResource='wood';render();if(action.endsWith('Tab'))window.scrollTo({top:0});return;}
   if(action==='update'){
+    stopFastForward();
     if(!registration?.waiting){toast('Du verwendest bereits die aktuelle Version.');return;}
     // Paused menus may hold an older snapshot than another tab's autosave.
     if(game&&running&&!safeSave()){openDialog('Spielstand zuerst sichern.','<p>Der lokale Speicher ist gerade nicht verfügbar. Exportiere deinen Spielstand unter „Spielstände“, bevor du das Update erneut startest.</p>');return;}
@@ -244,20 +262,31 @@ async function action(button) {
     openDialog('Materialreserven aufbauen?','<p>Die Marktregeln der Projektwaren werden auf die benötigten Vorräte angehoben. Laufende automatische Einkäufe verwenden freie Betriebskasse. Höhere bestehende Reserven bleiben erhalten.</p>',()=>finish(reserveProgrammeMaterials(game,E.warehouseCapacity(game))),'Bevorratung einrichten');return;
   }
   if(action==='goLab'){ui.productionTab='infra';go('production');return;}
+  if(action==='showChain'){closeDialog();ui.chain=id;ui.productionTab='chains';go('production');return;}
   if(action==='preview'){openBuildingPreview(id);return;}
   if(action==='previewQuantity'){
-    const delta=Number(button.dataset.delta),quantity=E.clamp(Number(dialog.dataset.previewQuantity)+delta,1,100);
+    const delta=Number(button.dataset.delta),quantity=E.clamp(Number(dialog.dataset.previewQuantity)+delta,1,10000);
     openBuildingPreview(id,quantity);
     dialog.querySelector(`button[data-action="previewQuantity"][data-delta="${delta}"]:not(:disabled)`)?.focus({preventScroll:true});return;
   }
   if(action==='build'||action==='buildInfra'){finish(E.build(game,id,ui.qty,action==='buildInfra'),oldTier);return;}
-  if(action==='demolish'||action==='demolishInfra'){
-    const infra=action==='demolishInfra',name=(infra?INFRA:BUILDINGS)[id].name;
-    openDialog('Kapazität zurückbauen?',`<p>${ui.qty}× <strong>${name}</strong> abbauen? Du erhältst 45 % des anteiligen Buchwerts zurück. Prüfe mögliche Engpässe vor dem Rückbau.</p>`,()=>finish(E.demolish(game,id,ui.qty,infra)),'Zurückbauen');return;
+  if(action==='demolish'||action==='demolishInfra'){finish(E.demolish(game,id,ui.qty,action==='demolishInfra'));return;}
+  if(['bulkBuild','bulkBuildInfra','bulkDemolish','bulkDemolishInfra'].includes(action)){
+    const kind={bulkBuild:'build',bulkBuildInfra:'buildInfra',bulkDemolish:'demolish',bulkDemolishInfra:'demolishInfra'}[action];
+    const count=E.maxTransaction(game,kind,id),isBuild=kind.startsWith('build'),infra=kind.endsWith('Infra');
+    if(!count){toast('Keine Einheiten verfügbar oder bezahlbar.',true);return;}
+    const name=(infra?INFRA:BUILDINGS)[id].name;
+    const cost=isBuild?E.buildQuote(game,id,count,infra).total:null;
+    openDialog(isBuild?'Maximale Anzahl bauen?':'Alle Einheiten abbauen?',`<p>${V.number(count)}× ${name}${isBuild?` für aktuell ${V.cash(cost)}`:'. Rückbau erstattet 45 % des Buchwerts'}.</p>`,()=>finish(isBuild?E.build(game,id,count,infra):E.demolish(game,id,count,infra)),isBuild?'Bauen':'Alle abbauen');return;
   }
   if(action==='active'){finish(E.setActive(game,id,Number(button.dataset.delta)));return;}
   if(action==='pause'){const own=game.buildings[id];finish(E.setActive(game,id,own.active?-own.active:own.count));return;}
   if(action==='upgrade'){finish(E.upgrade(game,id));return;}
+  if(['tradeAll','stockAll','bankAll','propertyAll'].includes(action)){
+    const kind={tradeAll:'trade',stockAll:'stock',bankAll:'bank',propertyAll:'property'}[action],amount=E.maxTransaction(game,kind,id,side);
+    if(!amount){toast('Kein Bestand oder kein freies Kaufbudget.',true);return;}
+    const fn={trade:E.trade,stock:E.stockTrade,bank:E.bankTransfer,property:E.propertyTrade}[kind];finish(fn(game,id,amount,side),oldTier);return;
+  }
   if(action==='trade'){finish(E.trade(game,id,ui.qty,side),oldTier);return;}
   if(action==='policy'){game.policy=id;finish(Eresult('Unternehmensstrategie geändert.'));return;}
   if(action==='profitGuard'){game.profitGuard=!game.profitGuard;finish(Eresult(game.profitGuard?'Margenwächter aktiv. Bei negativer Handelsmarge pausieren Betriebe automatisch.':'Margenwächter ausgeschaltet.'));return;}
@@ -269,6 +298,8 @@ async function action(button) {
   if(action==='treasuryToggle'){finish(E.setTreasury(game,'enabled',!game.treasury.enabled));return;}
   if(action==='treasuryStep'){finish(E.setTreasury(game,id,game.treasury[id]+Number(button.dataset.delta)));return;}
   if(action==='drip'){finish(E.toggleDividendReinvestment(game,id));return;}
+  if(action==='createBankPlan'){finish(E.createBankPlan(game,ui.bankPlanProduct,ui.bankPlanDirection,ui.amount,ui.planPeriod,ui.fixedDays));return;}
+  if(action==='cancelBankPlan'){finish(E.cancelBankPlan(game,Number(id)));return;}
   if(action==='createPlan'){finish(E.createSavingsPlan(game,ui.planStock,ui.amount,ui.planPeriod));return;}
   if(action==='cancelPlan'){finish(E.cancelSavingsPlan(game,Number(id)));return;}
   if(action==='property'){finish(E.propertyTrade(game,id,ui.qty,side),oldTier);return;}
@@ -320,15 +351,52 @@ async function action(button) {
 }
 const Eresult=message=>({ok:true,message});
 
+const stopRepeating=installHoldControls(document,{invoke:button=>action(button).catch(error=>{console.error(error);toast(error.message,true);}),onStart:()=>{repeating=true;},onEnd:()=>{repeating=false;safeSave();}});
+window.addEventListener('blur',stopRepeating);
+lockZoom(document);
+
+function refreshBuildingDetails(){
+  if(!dialog.open||!detailBuilding||!game)return;
+  const old=dialog.querySelector('[data-building-details]');if(!old)return;
+  const template=document.createElement('template');template.innerHTML=V.buildingDetails(game,ui,detailBuilding);morph(old,template.content.firstChild);
+}
+
+function showChartValue(event){const target=event.target.closest('[data-chart-value]');if(target){const output=target.closest('figure')?.querySelector('.chart-readout');if(output)output.textContent=target.dataset.chartValue;}}
+document.addEventListener('pointerover',showChartValue);
+
 document.addEventListener('click',event=>{
+  showChartValue(event);
   const button=event.target.closest('button[data-action]');
   if(button)action(button).catch(error=>{console.error(error);toast(`Aktion nicht ausgeführt: ${error.message}`,true);});
 });
-document.addEventListener('pointerdown',()=>{interactingUntil=Date.now()+1500;},{passive:true});
-document.addEventListener('pointerup',()=>{interactingUntil=Date.now()+150;},{passive:true});
-document.addEventListener('pointercancel',()=>{interactingUntil=Date.now()+150;},{passive:true});
+function startFastForward(pointer=null){
+  if(!game||!running||busy||dialog.open||ui.speed===100)return;
+  E.advance(game,Date.now());ui.speed=100;speedPointer=pointer;render(true);
+}
+function stopFastForward(){
+  if(ui.speed!==100)return;
+  if(game&&running&&!busy)E.advance(game,Date.now(),{speed:100});
+  const pointer=speedPointer;ui.speed=1;speedPointer=null;
+  const button=document.querySelector('[data-action="speed"]');if(pointer!==null&&button?.hasPointerCapture(pointer))button.releasePointerCapture(pointer);
+  safeSave();render(true);
+}
+window.addEventListener('blur',stopFastForward);
+window.addEventListener('pointerup',stopFastForward,{passive:true});
+window.addEventListener('pointercancel',stopFastForward,{passive:true});
+document.addEventListener('pointerdown',event=>{
+  const button=event.target.closest('[data-action="speed"]');
+  if(event.button===0&&event.isPrimary!==false&&button){event.preventDefault();startFastForward(event.pointerId);if(ui.speed===100)button.setPointerCapture(event.pointerId);}
+});
+document.addEventListener('pointermove',event=>{
+  if(speedPointer!==event.pointerId)return;const rect=document.querySelector('[data-action="speed"]')?.getBoundingClientRect();
+  if(!rect||event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)stopFastForward();
+},{passive:true});
+window.addEventListener('lostpointercapture',stopFastForward,{passive:true,capture:true});
+document.addEventListener('keydown',event=>{if([' ','Enter'].includes(event.key)&&event.target.closest('[data-action="speed"]')){event.preventDefault();startFastForward();}});
+document.addEventListener('keyup',event=>{if([' ','Enter'].includes(event.key))stopFastForward();});
+document.addEventListener('contextmenu',event=>{if(event.target.closest('[data-action="speed"]'))event.preventDefault();});
 dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeDialog();}});
-dialog.addEventListener('cancel',()=>{pending=null;});
+dialog.addEventListener('cancel',()=>{pending=null;detailBuilding=null;stopRepeating();});
 
 document.addEventListener('change',event=>{
   const node=event.target;
@@ -337,8 +405,8 @@ document.addEventListener('change',event=>{
     if(key==='amount')ui.amount=Math.round(E.clamp(Number(node.value)||1,1,1e14));
     else if(key==='fixedDays')ui.fixedDays=Number(node.value);
     else if(key==='buildFilter')ui.buildFilter=node.value;
-    else if(['optionResource','optionType','planStock'].includes(key))ui[key]=node.value;
-    else if(['optionDays','planPeriod'].includes(key))ui[key]=Number(node.value);
+    else if(['optionResource','optionType','planStock','chain','bankPlanProduct','bankPlanDirection','analysisResource','analysisStock'].includes(key))ui[key]=node.value;
+    else if(['optionDays','planPeriod','analysisHours'].includes(key))ui[key]=Number(node.value);
     render();
   }
   if(node.dataset.treasury&&game){const field=node.dataset.treasury;finish(E.setTreasury(game,field,field==='bank'?node.value:Number(node.value)));}
@@ -361,22 +429,22 @@ document.querySelector('#import-file').addEventListener('change',async event=>{
 
 setInterval(()=>{
   if(!running||!game||busy||document.hidden)return;
-  if(!claimLease()){running=false;ui.screen='menu';render();toast('Das Unternehmen wird in einer anderen Sitzung fortgesetzt.',true);return;}
+  if(!claimLease()){ui.speed=1;speedPointer=null;stopRepeating();running=false;ui.screen='menu';render();toast('Das Unternehmen wird in einer anderen Sitzung fortgesetzt.',true);return;}
   if(Date.now()<game.lastUpdate){game.lastUpdate=Date.now();toast('Die Geräteuhr wurde korrigiert. Die Simulation läuft weiter.');}
-  const oldTier=game.tier,result=E.advance(game,Date.now());
+  const oldTier=game.tier,result=E.advance(game,Date.now(),{speed:ui.speed});
   if(Date.now()-lastSaveAttempt>=15000)safeSave();
   if(game.tier>oldTier)queuedDiscovery=queuedDiscovery===null?oldTier:Math.min(queuedDiscovery,oldTier);
-  if(result.steps&&!dialog.open&&Date.now()>interactingUntil&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) {render(true);flushDiscovery();}
-},1000);
+  if(result.steps){render(true);refreshBuildingDetails();if(!repeating)flushDiscovery();}
+},500);
 
 document.addEventListener('visibilitychange',async()=>{
-  if(document.hidden){if(running&&!busy){E.advance(game,Date.now());safeSave();}}
+  if(document.hidden){stopRepeating();stopFastForward();if(running&&!busy){E.advance(game,Date.now());safeSave();}}
   else if(running&&!busy){checkUpdate();await resume(game);}
 });
-window.addEventListener('pagehide',()=>{if(running&&!busy)safeSave();releaseLease();});
+window.addEventListener('pagehide',()=>{stopFastForward();if(running&&!busy)safeSave();releaseLease();});
 window.addEventListener('storage',event=>{
   if(event.key===leaseKey&&running&&event.newValue){
-    try{if(JSON.parse(event.newValue).id!==sessionId){running=false;ui.screen='menu';if(dialog.open)closeDialog();render();toast('NULL wurde in einer anderen Sitzung geöffnet. Diese Sitzung pausiert.',true);}}catch{}
+    try{if(JSON.parse(event.newValue).id!==sessionId){ui.speed=1;speedPointer=null;stopRepeating();running=false;ui.screen='menu';if(dialog.open)closeDialog();render();toast('NULL wurde in einer anderen Sitzung geöffnet. Diese Sitzung pausiert.',true);}}catch{}
   }
 });
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;});

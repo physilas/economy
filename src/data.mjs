@@ -1,6 +1,6 @@
 export const VERSION = 1;
-export const RELEASE = '2.1.2';
-export const STEP = 1; // One simulated step is one real second; production rates stay unchanged.
+export const RELEASE = '2.2.0';
+export const STEP = 0.5; // Two real simulation steps per second; hourly rates stay unchanged.
 export const HOUR = 60; // One economy hour takes one real minute.
 export const DAY = 24 * HOUR;
 export const OFFLINE_LIMIT = 7 * 86400;
@@ -44,44 +44,45 @@ export const RESOURCES = {
   colonies:{name:'Autonome Kolonien',icon:'globe',base:120000000,tier:11,sector:'tech',depth:1000},
 };
 
-// Output and input are per economy hour (one real minute).
+// Exact base recipes per economy hour (one real minute). Power-of-two batches
+// give every complete chain whole-number factory ratios without rounding.
 export const BUILDINGS = {
   lumber: { name: 'Holzfäller', icon: 'tree', tier: 0, cost: 320, staff: 2, wage: 9, output: { wood: 8 }, input: {}, energy: 0, freight: 1, pollution: 0.1, description: 'Der Anfang jeder Wertschöpfung.' },
   quarry: { name: 'Steinbruch', icon: 'mountain', tier: 0, cost: 480, staff: 3, wage: 12, output: { stone: 8 }, input: {}, energy: 0, freight: 1, pollution: 0.3 },
-  farm: { name: 'Getreidehof', icon: 'wheat', tier: 0, cost: 380, staff: 2, wage: 8, output: { grain: 10 }, input: {}, energy: 0, freight: 1, pollution: 0.05 },
-  well: { name: 'Wasserwerk', icon: 'drop', tier: 0, cost: 260, staff: 1, wage: 5, output: { water: 14 }, input: {}, energy: 0, freight: 0.5, pollution: 0 },
-  coalMine: { name: 'Kohlegrube', icon: 'diamond', tier: 1, cost: 1600, staff: 5, wage: 30, output: { coal: 9 }, input: {}, energy: 1, freight: 2, pollution: 1.8, materials: { wood: 25, stone: 20 } },
+  farm: { name: 'Getreidehof', icon: 'wheat', tier: 0, cost: 380, staff: 2, wage: 8, output: { grain: 8 }, input: {}, energy: 0, freight: 1, pollution: 0.05 },
+  well: { name: 'Wasserwerk', icon: 'drop', tier: 0, cost: 260, staff: 1, wage: 5, output: { water: 16 }, input: {}, energy: 0, freight: 0.5, pollution: 0 },
+  coalMine: { name: 'Kohlegrube', icon: 'diamond', tier: 1, cost: 1600, staff: 5, wage: 30, output: { coal: 8 }, input: {}, energy: 1, freight: 2, pollution: 1.8, materials: { wood: 25, stone: 20 } },
   ironMine: { name: 'Erzmine', icon: 'hexagon', tier: 1, cost: 2200, staff: 6, wage: 38, output: { ore: 8 }, input: {}, energy: 1, freight: 2, pollution: 1.3, materials: { wood: 30, stone: 30 } },
-  cottonFarm: { name: 'Baumwollfarm', icon: 'flower', tier: 1, cost: 1400, staff: 4, wage: 22, output: { cotton: 12 }, input: { water: 4 }, energy: 0, freight: 1, pollution: 0.1 },
-  sawmill: { name: 'Sägewerk', icon: 'layers', tier: 1, cost: 1200, staff: 4, wage: 22, output: { planks: 6 }, input: { wood: 10 }, energy: 1, freight: 1, pollution: 0.3, materials: { wood: 20, stone: 10 } },
-  kiln: { name: 'Ziegelei', icon: 'brick', tier: 1, cost: 1500, staff: 4, wage: 25, output: { bricks: 6 }, input: { stone: 10, water: 3 }, energy: 1, freight: 2, pollution: 0.6 },
-  bakery: { name: 'Bäckerei', icon: 'bread', tier: 1, cost: 1100, staff: 3, wage: 19, output: { food: 8 }, input: { grain: 12, water: 4 }, energy: 1, freight: 1, pollution: 0.1 },
-  smelter: { name: 'Eisenhütte', icon: 'box', tier: 2, cost: 6200, staff: 8, wage: 60, output: { iron: 7 }, input: { ore: 10, coal: 5 }, energy: 3, freight: 3, pollution: 2.5, materials: { bricks: 40, planks: 30 } },
-  weaver: { name: 'Weberei', icon: 'grid', tier: 2, cost: 4800, staff: 7, wage: 48, output: { fabric: 10 }, input: { cotton: 15 }, energy: 2, freight: 2, pollution: 0.5 },
-  glassworks: { name: 'Glashütte', icon: 'flask', tier: 2, cost: 5800, staff: 6, wage: 50, output: { glass: 8 }, input: { stone: 12, coal: 5 }, energy: 3, freight: 2, pollution: 1.4 },
-  toolmaker: { name: 'Werkzeugbau', icon: 'tool', tier: 2, cost: 8800, staff: 8, wage: 68, output: { tools: 5 }, input: { iron: 5, planks: 5 }, energy: 3, freight: 2, pollution: 0.6, materials: { iron: 20, bricks: 40 } },
-  steelworks: { name: 'Stahlwerk', icon: 'beam', tier: 3, cost: 32000, staff: 16, wage: 160, output: { steel: 8 }, input: { iron: 12, coal: 8 }, energy: 8, freight: 5, pollution: 4.5, materials: { tools: 30, bricks: 80 } },
-  carpenter: { name: 'Möbelmanufaktur', icon: 'chair', tier: 3, cost: 24000, staff: 12, wage: 120, output: { furniture: 8 }, input: { planks: 18, fabric: 8 }, energy: 4, freight: 4, pollution: 0.5 },
-  refinery: { name: 'Chemiewerk', icon: 'flask', tier: 3, cost: 38000, staff: 14, wage: 135, output: { chemicals: 11 }, input: { coal: 14, water: 18 }, energy: 7, freight: 4, pollution: 3.5, materials: { iron: 60, glass: 30 } },
-  machineworks: { name: 'Maschinenbau', icon: 'gear', tier: 4, cost: 185000, staff: 28, wage: 380, output: { machines: 5 }, input: { steel: 10, tools: 8 }, energy: 12, freight: 7, pollution: 1.8, materials: { steel: 80, tools: 60 } },
-  pharma: { name: 'Pharmalabor', icon: 'cross', tier: 4, cost: 165000, staff: 24, wage: 360, output: { medicine: 12 }, input: { chemicals: 14, glass: 10, water: 12 }, energy: 10, freight: 4, pollution: 1.2 },
-  electronics: { name: 'Elektronikwerk', icon: 'chip', tier: 4, cost: 220000, staff: 30, wage: 450, output: { electronics: 8 }, input: { iron: 10, glass: 10, chemicals: 8 }, energy: 14, freight: 5, pollution: 1.1 },
-  automaker: { name: 'Fahrzeugwerk', icon: 'truck', tier: 5, cost: 1450000, staff: 65, wage: 1450, output: { vehicles: 4 }, input: { steel: 22, machines: 6, electronics: 6, fabric: 8 }, energy: 28, freight: 14, pollution: 3, materials: { machines: 40, steel: 150 } },
-  foundry: { name: 'Chipfabrik', icon: 'cpu', tier: 5, cost: 1900000, staff: 60, wage: 1700, output: { chips: 8 }, input: { electronics: 12, chemicals: 16, water: 40 }, energy: 35, freight: 8, pollution: 2, materials: { machines: 60, glass: 100 } },
-  aerospace: { name: 'Raumfahrtzentrum', icon: 'orbit', tier: 6, cost: 18000000, staff: 160, wage: 6800, output: { satellites: 3 }, input: { chips: 10, machines: 8, steel: 30, electronics: 15 }, energy: 80, freight: 25, pollution: 4, materials: { vehicles: 30, chips: 100, machines: 100 } },
-  polymerworks:{name:'Polymerraffinerie',icon:'flask',tier:7,cost:12000000,staff:70,wage:4200,output:{polymers:40},input:{chemicals:80,coal:35,water:100},energy:60,freight:22,pollution:4.5,materials:{machines:80,steel:200}},
-  alloyworks:{name:'Präzisionsmetallurgie',icon:'beam',tier:7,cost:25000000,staff:120,wage:7200,output:{alloys:20},input:{steel:180,chemicals:80,coal:50,water:100},energy:90,freight:35,pollution:7.5,materials:{machines:120,steel:500}},
-  robotics:{name:'Robotikmanufaktur',icon:'gear',tier:7,cost:35000000,staff:100,wage:6000,output:{robots:8},input:{chips:10,machines:12,alloys:4,polymers:10},energy:80,freight:25,pollution:2,materials:{alloys:50,machines:100}},
-  fusionworks:{name:'Fusionsfertigung',icon:'bolt',tier:8,cost:90000000,staff:180,wage:16000,output:{cells:6},input:{alloys:15,polymers:50,chemicals:160,water:300},energy:180,freight:50,pollution:2.2,materials:{alloys:150,robots:30}},
-  quantumworks:{name:'Quantenfabrik',icon:'cpu',tier:8,cost:130000000,staff:160,wage:20000,output:{quantum:4},input:{chips:60,robots:6,glass:100,cells:1},energy:220,freight:35,pollution:1.8,materials:{robots:60,machines:300,glass:500}},
-  bioreactor:{name:'Biokomplex',icon:'cross',tier:8,cost:100000000,staff:170,wage:18000,output:{biotech:12},input:{medicine:200,chemicals:200,cells:2,polymers:60,water:500},energy:160,freight:45,pollution:1.4,materials:{robots:40,glass:500}},
-  nanoforge:{name:'Nanofertigung',icon:'hexagon',tier:9,cost:350000000,staff:300,wage:42000,output:{nano:5},input:{alloys:50,quantum:2,chemicals:300,cells:3},energy:400,freight:80,pollution:2.8,materials:{quantum:20,alloys:400}},
-  climateworks:{name:'Klimasystembau',icon:'leaf',tier:9,cost:650000000,staff:420,wage:70000,output:{climate:3},input:{nano:4,robots:20,cells:6,machines:80,steel:300},energy:550,freight:120,pollution:1,materials:{robots:100,alloys:500}},
-  shipyard:{name:'Interstellare Werft',icon:'rocket',tier:10,cost:2000000000,staff:800,wage:180000,output:{starships:1},input:{nano:8,quantum:6,robots:20,satellites:10,cells:10},energy:900,freight:220,pollution:3.5,materials:{nano:80,robots:100}},
-  habitatworks:{name:'Habitatkonstruktion',icon:'globe',tier:10,cost:3000000000,staff:1000,wage:240000,output:{habitats:1},input:{starships:1,climate:2,nano:5,robots:20,steel:600,polymers:100},energy:1400,freight:350,pollution:4.5,materials:{starships:2,nano:100,robots:200}},
-  biosphereworks:{name:'Biosphärengestaltung',icon:'leaf',tier:11,cost:12000000000,staff:2000,wage:900000,output:{biospheres:2},input:{habitats:1,climate:20,biotech:200,cells:60,water:3000},energy:2200,freight:600,pollution:1,materials:{habitats:8,climate:80,nano:500}},
-  memoryworks:{name:'Wissensmanufaktur',icon:'book',tier:11,cost:18000000000,staff:1500,wage:1200000,output:{knowledge:1},input:{quantum:80,nano:40,cells:100,robots:200},energy:2800,freight:500,pollution:2,materials:{quantum:500,robots:1000,starships:5}},
-  colonyworks:{name:'Koloniegründung',icon:'globe',tier:11,cost:35000000000,staff:4000,wage:4000000,output:{colonies:1},input:{habitats:4,biospheres:2,knowledge:1,starships:2,biotech:300},energy:4500,freight:1000,pollution:4,materials:{habitats:20,biospheres:4,knowledge:10}},
+  cottonFarm: { name: 'Baumwollfarm', icon: 'flower', tier: 1, cost: 1400, staff: 4, wage: 22, output: { cotton: 16 }, input: { water: 16 }, energy: 0, freight: 1, pollution: 0.1 },
+  sawmill: { name: 'Sägewerk', icon: 'layers', tier: 1, cost: 1200, staff: 4, wage: 22, output: { planks: 8 }, input: { wood: 16 }, energy: 1, freight: 1, pollution: 0.3, materials: { wood: 20, stone: 10 } },
+  kiln: { name: 'Ziegelei', icon: 'brick', tier: 1, cost: 1500, staff: 4, wage: 25, output: { bricks: 8 }, input: { stone: 16, water: 8 }, energy: 1, freight: 2, pollution: 0.6 },
+  bakery: { name: 'Bäckerei', icon: 'bread', tier: 1, cost: 1100, staff: 3, wage: 19, output: { food: 8 }, input: { grain: 8, water: 8 }, energy: 1, freight: 1, pollution: 0.1 },
+  smelter: { name: 'Eisenhütte', icon: 'box', tier: 2, cost: 6200, staff: 8, wage: 60, output: { iron: 8 }, input: { ore: 8, coal: 8 }, energy: 3, freight: 3, pollution: 2.5, materials: { bricks: 40, planks: 30 } },
+  weaver: { name: 'Weberei', icon: 'grid', tier: 2, cost: 4800, staff: 7, wage: 48, output: { fabric: 8 }, input: { cotton: 8 }, energy: 2, freight: 2, pollution: 0.5 },
+  glassworks: { name: 'Glashütte', icon: 'flask', tier: 2, cost: 5800, staff: 6, wage: 50, output: { glass: 8 }, input: { stone: 8, coal: 8 }, energy: 3, freight: 2, pollution: 1.4 },
+  toolmaker: { name: 'Werkzeugbau', icon: 'tool', tier: 2, cost: 8800, staff: 8, wage: 68, output: { tools: 8 }, input: { iron: 8, planks: 8 }, energy: 3, freight: 2, pollution: 0.6, materials: { iron: 20, bricks: 40 } },
+  steelworks: { name: 'Stahlwerk', icon: 'beam', tier: 3, cost: 32000, staff: 16, wage: 160, output: { steel: 8 }, input: { iron: 8, coal: 8 }, energy: 8, freight: 5, pollution: 4.5, materials: { tools: 30, bricks: 80 } },
+  carpenter: { name: 'Möbelmanufaktur', icon: 'chair', tier: 3, cost: 24000, staff: 12, wage: 120, output: { furniture: 8 }, input: { planks: 16, fabric: 8 }, energy: 4, freight: 4, pollution: 0.5 },
+  refinery: { name: 'Chemiewerk', icon: 'flask', tier: 3, cost: 38000, staff: 14, wage: 135, output: { chemicals: 8 }, input: { coal: 8, water: 16 }, energy: 7, freight: 4, pollution: 3.5, materials: { iron: 60, glass: 30 } },
+  machineworks: { name: 'Maschinenbau', icon: 'gear', tier: 4, cost: 185000, staff: 28, wage: 380, output: { machines: 4 }, input: { steel: 8, tools: 4 }, energy: 12, freight: 7, pollution: 1.8, materials: { steel: 80, tools: 60 } },
+  pharma: { name: 'Pharmalabor', icon: 'cross', tier: 4, cost: 165000, staff: 24, wage: 360, output: { medicine: 8 }, input: { chemicals: 8, glass: 8, water: 16 }, energy: 10, freight: 4, pollution: 1.2 },
+  electronics: { name: 'Elektronikwerk', icon: 'chip', tier: 4, cost: 220000, staff: 30, wage: 450, output: { electronics: 8 }, input: { iron: 8, glass: 8, chemicals: 8 }, energy: 14, freight: 5, pollution: 1.1 },
+  automaker: { name: 'Fahrzeugwerk', icon: 'truck', tier: 5, cost: 1450000, staff: 65, wage: 1450, output: { vehicles: 4 }, input: { steel: 16, machines: 4, electronics: 4, fabric: 8 }, energy: 28, freight: 14, pollution: 3, materials: { machines: 40, steel: 150 } },
+  foundry: { name: 'Chipfabrik', icon: 'cpu', tier: 5, cost: 1900000, staff: 60, wage: 1700, output: { chips: 8 }, input: { electronics: 16, chemicals: 16, water: 32 }, energy: 35, freight: 8, pollution: 2, materials: { machines: 60, glass: 100 } },
+  aerospace: { name: 'Raumfahrtzentrum', icon: 'orbit', tier: 6, cost: 18000000, staff: 160, wage: 6800, output: { satellites: 4 }, input: { chips: 16, machines: 8, steel: 32, electronics: 16 }, energy: 80, freight: 25, pollution: 4, materials: { vehicles: 30, chips: 100, machines: 100 } },
+  polymerworks:{name:'Polymerraffinerie',icon:'flask',tier:7,cost:12000000,staff:70,wage:4200,output: { polymers: 32 },input: { chemicals: 64, coal: 32, water: 128 },energy:60,freight:22,pollution:4.5,materials:{machines:80,steel:200}},
+  alloyworks:{name:'Präzisionsmetallurgie',icon:'beam',tier:7,cost:25000000,staff:120,wage:7200,output: { alloys: 16 },input: { steel: 128, chemicals: 64, coal: 32, water: 128 },energy:90,freight:35,pollution:7.5,materials:{machines:120,steel:500}},
+  robotics:{name:'Robotikmanufaktur',icon:'gear',tier:7,cost:35000000,staff:100,wage:6000,output: { robots: 8 },input: { chips: 8, machines: 8, alloys: 4, polymers: 8 },energy:80,freight:25,pollution:2,materials:{alloys:50,machines:100}},
+  fusionworks:{name:'Fusionsfertigung',icon:'bolt',tier:8,cost:90000000,staff:180,wage:16000,output: { cells: 4 },input: { alloys: 16, polymers: 32, chemicals: 128, water: 256 },energy:180,freight:50,pollution:2.2,materials:{alloys:150,robots:30}},
+  quantumworks:{name:'Quantenfabrik',icon:'cpu',tier:8,cost:130000000,staff:160,wage:20000,output: { quantum: 4 },input: { chips: 64, robots: 8, glass: 128, cells: 1 },energy:220,freight:35,pollution:1.8,materials:{robots:60,machines:300,glass:500}},
+  bioreactor:{name:'Biokomplex',icon:'cross',tier:8,cost:100000000,staff:170,wage:18000,output: { biotech: 8 },input: { medicine: 128, chemicals: 128, cells: 1, polymers: 32, water: 512 },energy:160,freight:45,pollution:1.4,materials:{robots:40,glass:500}},
+  nanoforge:{name:'Nanofertigung',icon:'hexagon',tier:9,cost:350000000,staff:300,wage:42000,output: { nano: 4 },input: { alloys: 32, quantum: 2, chemicals: 256, cells: 2 },energy:400,freight:80,pollution:2.8,materials:{quantum:20,alloys:400}},
+  climateworks:{name:'Klimasystembau',icon:'leaf',tier:9,cost:650000000,staff:420,wage:70000,output: { climate: 2 },input: { nano: 4, robots: 16, cells: 4, machines: 64, steel: 256 },energy:550,freight:120,pollution:1,materials:{robots:100,alloys:500}},
+  shipyard:{name:'Interstellare Werft',icon:'rocket',tier:10,cost:2000000000,staff:800,wage:180000,output: { starships: 1 },input: { nano: 8, quantum: 4, robots: 16, satellites: 8, cells: 8 },energy:900,freight:220,pollution:3.5,materials:{nano:80,robots:100}},
+  habitatworks:{name:'Habitatkonstruktion',icon:'globe',tier:10,cost:3000000000,staff:1000,wage:240000,output: { habitats: 1 },input: { starships: 1, climate: 2, nano: 4, robots: 16, steel: 512, polymers: 128 },energy:1400,freight:350,pollution:4.5,materials:{starships:2,nano:100,robots:200}},
+  biosphereworks:{name:'Biosphärengestaltung',icon:'leaf',tier:11,cost:12000000000,staff:2000,wage:900000,output: { biospheres: 2 },input: { habitats: 1, climate: 16, biotech: 128, cells: 64, water: 2048 },energy:2200,freight:600,pollution:1,materials:{habitats:8,climate:80,nano:500}},
+  memoryworks:{name:'Wissensmanufaktur',icon:'book',tier:11,cost:18000000000,staff:1500,wage:1200000,output: { knowledge: 1 },input: { quantum: 64, nano: 32, cells: 128, robots: 256 },energy:2800,freight:500,pollution:2,materials:{quantum:500,robots:1000,starships:5}},
+  colonyworks:{name:'Koloniegründung',icon:'globe',tier:11,cost:35000000000,staff:4000,wage:4000000,output: { colonies: 1 },input: { habitats: 4, biospheres: 2, knowledge: 1, starships: 2, biotech: 256 },energy:4500,freight:1000,pollution:4,materials:{habitats:20,biospheres:4,knowledge:10}},
 };
 
 export const TIERS = [

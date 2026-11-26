@@ -15,13 +15,13 @@ function infrastructureOption(s,id,shortage,perUnit){
   const materialCost=Object.entries(d.materials||{}).reduce((total,[resource,amount])=>{
     const missing=Math.max(0,amount*quantity-s.inventory[resource]);return total+(missing>1e8?Infinity:quote(s,resource,missing).total);
   },0);
-  const cost=quantity<=100?buildQuote(s,id,quantity,true).total:buildingCost+materialCost;
+  const cost=quantity<=10000?buildQuote(s,id,quantity,true).total:buildingCost+materialCost;
   return {id,quantity,cost:finiteCost(cost),withinLimit:quantity+existing<=10000};
 }
 
 // Current-price analysis only: no random numbers, future market information or game mutations.
 export function previewBuilding(s,id,quantity=1){
-  if(!Object.hasOwn(BUILDINGS,id)||BUILDINGS[id].tier>s.tier||!Number.isInteger(quantity)||quantity<1||quantity>100)return null;
+  if(!Object.hasOwn(BUILDINGS,id)||BUILDINGS[id].tier>s.tier||!Number.isInteger(quantity)||quantity<1||quantity>10000)return null;
   const b=BUILDINGS[id],owned=s.buildings[id],quote=buildQuote(s,id,quantity);
   const planned={...s,buildings:{...s.buildings,[id]:{...owned,count:owned.count+quantity,active:owned.active+quantity}},inventory:{...s.inventory}};
   const materials=Object.entries(quote.materials).map(([resource,needed])=>{

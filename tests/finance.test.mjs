@@ -18,12 +18,12 @@ test('option pricing obeys parity, expiry payoff and monotonic volatility',()=>{
   assert.ok(optionPrice(100,100,3,.2)>optionPrice(100,100,3,.1));
 });
 
-test('property roundtrips lose fees and rents are paid once per day',()=>{
+test('property roundtrips lose fees and rents accrue every half-second',()=>{
   const s=game(),cash=s.cash;propertyTrade(s,'apartments',1,'buy');propertyTrade(s,'apartments',1,'sell');
   near(cash-s.cash,PROPERTIES.apartments.cost*.05);
   propertyTrade(s,'farmland',1,'buy');const before=s.cash;
   advance(s,now+DAY*1000);assert.ok(s.cash>before);assert.ok(s.stats.rent>0);
-  const after=s.cash;advance(s,s.lastUpdate+1000);near(s.cash,after);
+  const after=s.cash;advance(s,s.lastUpdate+500);assert.ok(s.cash>after);
 });
 
 test('property and hedging content stays hidden before unlock',()=>{
@@ -86,8 +86,8 @@ test('dividends have a matching ex-dividend price adjustment, preventing free di
   const withoutDividend=structuredClone(withDividend),dps=withDividend.stocks.sylva.report.dps;
   withoutDividend.stocks.sylva.report.dps=0;
   advance(withDividend,now+1000);advance(withoutDividend,now+1000);
-  near(withDividend.cash-withoutDividend.cash,100*dps*.85);
-  near(withoutDividend.stocks.sylva.price-withDividend.stocks.sylva.price,dps);
+  near(withDividend.cash-withoutDividend.cash,100*dps*.85/DAY);
+  near(withoutDividend.stocks.sylva.price-withDividend.stocks.sylva.price,dps/DAY);
 });
 
 test('supply planning exposes input deficits and setup configures valid buffers',()=>{

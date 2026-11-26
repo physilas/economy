@@ -31,6 +31,7 @@ test('a complex guarded economy stays deterministic across irregular catch-up ch
 test('interest, share positions, book values and financial statistics survive large endgame saves',()=>{
   const s=E.createGame('Large endgame',0,42);s.tier=11;s.cash=1e20;
   assert.ok(E.build(s,'lumber',100).ok);assert.ok(E.build(s,'lumber',100).ok);assert.ok(E.build(s,'lumber',50).ok);
+  s.buildings.lumber.book=320*(1.13**250-1)/.13; // Existing book value from the former escalating prices.
   assert.ok(s.buildings.lumber.book>1e15);s.buildings.lumber.active=0;
   s.banks.savings=1e15;s.stocks.sylva.quantity=1e10;
   assert.ok(E.stockTrade(s,'sylva',1,'buy').ok);assert.equal(s.stocks.sylva.quantity,1e10+1);

@@ -39,7 +39,7 @@ test('prestige returns inaccessible tabs and products to starting selections',()
 
 test('valid unlocked preferences survive normalization without changing the company',()=>{
   const s=createGame('Advanced',0,42);s.tier=11;s.campaign.unlocked=true;
-  const ui=advancedUI(),before=JSON.stringify(s),selection={...ui};
+  const ui=normalizeUI(advancedUI(),s),before=JSON.stringify(s),selection={...ui};
   assert.equal(normalizeUI(ui,s),ui);assert.deepEqual(ui,selection);assert.equal(JSON.stringify(s),before);
 });
 

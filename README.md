@@ -23,7 +23,7 @@ Neue Waren, Betriebe, Forschungszweige und Anlageformen bleiben verborgen, bis d
 ## Zeit und Sicherungen
 
 - Eine echte Minute entspricht einer Spielstunde; 24 echte Minuten einem Spieltag.
-- Produktion wird jede Sekunde berechnet. Preise bewegen sich alle fünf Sekunden. Die schnellere Darstellung beschleunigt die Wirtschaftsleistung nicht.
+- Produktion und regelmäßige Geldflüsse werden alle 0,5 Sekunden berechnet. Mieten und Dividenden werden laufend statt täglich ausgezahlt. Die Uhr zeigt Spielminuten. Preise bewegen sich alle fünf Sekunden. Der normale Halbsekundentakt erhält die Stundenerträge. „100× halten“ beschleunigt die Simulation gezielt.
 - Beim Wiederöffnen werden bis zu **sieben echte Tage je Abwesenheit** nachgerechnet. Engpässe, Ereignisse, Marktaufträge, Zinsen und Fälligkeiten gelten weiter. Darüber hinausgehende Zeit wird im Rückkehrbericht ausgewiesen.
 - Autosave alle 15 Sekunden, nach Entscheidungen und beim Verlassen; drei manuelle Speicherplätze, JSON-Export und Import.
 - Jeder Speicherplatz besitzt zusätzlich seine letzte gültige Sicherung. Prüfsummen erkennen beschädigte Dateien; eingelesene Daten werden validiert.
@@ -31,11 +31,22 @@ Neue Waren, Betriebe, Forschungszweige und Anlageformen bleiben verborgen, bis d
 
 Browserdaten sind lokal: Wer sie löscht, verliert auch lokale Spielstände. **Eine exportierte Datei ist die unabhängige Sicherung.** Safari und die Home-Bildschirm-App können getrennte Speicher verwenden.
 
+## Bedienung und Analyse
+
+- Kompakte Betriebs- und Infrastrukturzeilen: Name, Anzahl, − und +; Details, Ausbau, Pausen und Bauvorschau über ⓘ.
+- **100× halten** in der Kopfleiste beschleunigt alle Simulationssysteme nur während des Haltens. Loslassen, Verlassen des Knopfs, Dialoge, App-Wechsel und Neuladen beenden den Schnelllauf. Offline läuft die normale Zeit weiter.
+- Mengen und Investitionssummen bleiben beim Scrollen oben sichtbar. ×10 und ÷10 ändern die Größenordnung. Gedrückthalten wiederholt Aktionen; Loslassen, Scrollen und App-Wechsel stoppen die Wiederholung.
+- Alle kaufen / verkaufen je Ware, Aktie und Immobilie; alles einzahlen / abheben je Bankkonto. Maximal bauen und komplett abbauen im Info-Dialog.
+- Hauptbereiche: Übersicht, Produktion, Markt, Finanzen, Analyse und Mehr. Forschung, Holdingprogramme, Aufträge und Chronik bleiben unter Mehr erreichbar.
+- Produktion → Ketten zeigt vollständige Lieferketten mit kleinsten ganzzahligen Grundverhältnissen und einer Live-Mengenplanung.
+- Analyse: Vermögen, Liquidität, Waren- und Depotwert, Schulden, Umsatz, laufende Kosten, Zinsen, Dividenden, Mieten, Steuern, Produktions- und Forschungserträge, Kapazitätsversorgung, Warenbilanzen, Kurse und Betriebsdetails. Historische neue Kennzahlen beginnen ab dem Update; vorhandene Verläufe bleiben erhalten.
+- Spielstandsformat und Speicherschlüssel bleiben unverändert. Anzahl, Aktivierung, Ausbau, Buchwerte, Forschung, Freischaltungen, Finanzpositionen und Holdingfortschritt alter Stände werden übernommen.
+
 ## Wirtschaft und Entscheidungen
 
-Produktionsketten benötigen Vorprodukte, Personal, Energie, Transport, Lagerplatz und Betriebskapital. Skaleneffekte konkurrieren mit steigenden Baukosten, Knappheit und Umweltkosten. Eine Mengenplanung macht Zulieferdefizite sichtbar. Ein optionaler Margenwächter pausiert offensichtliche Verlustketten und startet sie bei erholten Preisen wieder. Strategien, Ausbaustufen und Forschung verändern die Unternehmensleistung.
+Produktionsketten benötigen Vorprodukte, Personal, Energie, Transport, Lagerplatz und Betriebskapital. Exakte Grundrezepte bilden ganzzahlige Betriebsverhältnisse. Produktionsbetriebe haben feste Grundbaupreise; Infrastruktur wächst weiterhin im Preis. Jeder Ausbau verdoppelt Produktion und Vorproduktverbrauch, bei deutlich steigenden Ausbaukosten. Knappheit und Umweltkosten begrenzen das Wachstum. Eine Mengenplanung macht Zulieferdefizite sichtbar. Ein optionaler Margenwächter pausiert offensichtliche Verlustketten und startet sie bei erholten Preisen wieder. Strategien, Ausbaustufen und Forschung verändern die Unternehmensleistung.
 
-**Bau prüfen** öffnet bei jedem bekannten Betrieb eine Vorschau für 1 bis 100 zusätzliche Einheiten. Sie zeigt Baukosten, verbleibende Liquidität, Vorproduktbedarf, technische Auslastung, zusätzliche Infrastruktur und einen Marktvergleich der laufenden Kosten und Erlöse. Vorhandene Zulieferer werden berücksichtigt. Die Vorschau verändert keinen Spielstand und kennt keine zukünftigen Kurse; Rechenannahmen stehen hinter dem Info-Symbol im Dialog. Noch nicht entdeckte Inhalte bleiben verborgen.
+**Bau prüfen** öffnet bei jedem bekannten Betrieb eine Vorschau für 1 bis 10.000 zusätzliche Einheiten. Sie zeigt Baukosten, verbleibende Liquidität, Vorproduktbedarf, technische Auslastung, zusätzliche Infrastruktur und einen Marktvergleich der laufenden Kosten und Erlöse. Vorhandene Zulieferer werden berücksichtigt. Die Vorschau verändert keinen Spielstand und kennt keine zukünftigen Kurse; Rechenannahmen stehen hinter dem Info-Symbol im Dialog. Noch nicht entdeckte Inhalte bleiben verborgen.
 
 Der Markt reagiert auf eigene Handelsmengen, externe Nachfrage, Konjunktur und Ereignisse. Aufträge werden mit einem integrierten marginalen Preiseffekt abgerechnet; Aufteilen eines Auftrags erzeugt keinen kostenlosen Preisvorteil. Automatik und Limitaufträge handeln nach den gesetzten Regeln.
 
@@ -46,13 +57,13 @@ Aktien sind mit Unternehmensfundamentaldaten verknüpft. Verkaufspreise, Inputko
 
 - 36 Ressourcen, 36 Produktionsbetriebe, zwölf Entwicklungsepochen und 13 Infrastrukturtypen.
 - Zwölf Forschungszweige mit mehreren Stufen; vier Unternehmensstrategien, Umweltsystem und Kapazitätsplanung.
-- Reservekonto, Tagesgeld, drei Festgeldlaufzeiten, Kontokorrent und amortisierende Investitionskredite.
+- Reservekonto, Tagesgeld, drei Festgeldlaufzeiten, Spar- und Auszahlungspläne für Bankkonten, Festgeld-Sparpläne, Kontokorrent und amortisierende Investitionskredite.
 - Fünf Einzelaktien und ein Marktindex, Dividenden-Wiederanlage und regelmäßige Sparpläne.
 - Drei Anleiheklassen, vier riskante Beteiligungsarten und vier vermietete Immobilienarten.
 - Call- und Put-Absicherungen mit modellierten Prämien, fester Laufzeit und auf die Prämie begrenztem Verlust. Abrechnung zum Außenmarkt ohne direkt manipulierbaren eigenen Knappheitseffekt.
 - Liquiditätsmanager, Lieferverträge, Reputation, Konjunkturzyklen, Ereignisse und Meilensteine.
 - Neun aufeinanderfolgende Holdingprogramme mit jeweils drei wählbaren Schwerpunkten: Produktion, Finanzen oder Logistik. Einmalige Material- und Kapitalinvestitionen, feste echte Laufzeiten, dauerhafte Boni. Laufende und abgeschlossene Programme überleben spätere Neugründungen und Sanierungen.
-- Dauerhafte Vermächtnispunkte für spätere Neugründungen.
+- Dauerhafte Vermächtnispunkte für spätere Neugründungen, mit eigener Übersicht über aktive Boni, verfügbare Belohnung und nächste Punkteschwellen.
 - Notaufträge und bei Überschuldung eine Sanierung als Ausweg. Eine Sanierung gibt Vermögenswerte ab, erhält aber Wissen und Entdeckungen.
 
 </details>
@@ -73,7 +84,7 @@ python3 -m http.server 4187 --bind 127.0.0.1
 
 Node.js 22 oder neuer wird für die Tests benötigt, Python nur für eine lokale HTTP-Vorschau. Die App selbst hat keine Paketabhängigkeiten. Der Service Worker benötigt HTTPS oder localhost.
 
-Die Tests prüfen unter anderem deterministische Live-/Offline-Berechnung, Stundenerträge beim Sekundentakt, Konstruktion, Preiswirkung, unmögliche Rückverkaufsgewinne, Kredite, Zinsen, Steuern, Fälligkeiten, Optionsmathematik, Wiederanlage, Immobilien, Berichte, versteckte Freischaltungen, Schema-Validierung, beschädigte Sicherungen und eine simulierte Offline-Woche. Zusätzliche Regressionstests prüfen identische Ergebnisse des Margenwächters bei unterschiedlichen Rechenschritten, Offlineboni bei kurzen Abwesenheiten, sehr große Vermögen beim Speichern/Laden, korrekte Bedienzustände nach Spielstandwechseln sowie einen vollständigen, gegen fehlgeschlagene Updates abgesicherten Offline-Cache. GitHub Actions führt die Prüfungen bei jedem Push aus.
+Die Tests prüfen unter anderem deterministische Live-/Offline-Berechnung, Stundenerträge beim Halbsekundentakt, Konstruktion, Preiswirkung, unmögliche Rückverkaufsgewinne, Kredite, Zinsen, Steuern, Fälligkeiten, Optionsmathematik, Wiederanlage, Immobilien, Berichte, versteckte Freischaltungen, Schema-Validierung, beschädigte Sicherungen und eine simulierte Offline-Woche. Zusätzliche Regressionstests prüfen identische Ergebnisse des Margenwächters bei unterschiedlichen Rechenschritten, Offlineboni bei kurzen Abwesenheiten, sehr große Vermögen beim Speichern/Laden, korrekte Bedienzustände nach Spielstandwechseln sowie einen vollständigen, gegen fehlgeschlagene Updates abgesicherten Offline-Cache. GitHub Actions führt die Prüfungen bei jedem Push aus.
 
 Der zusätzliche Langzeittest beginnt mit dem normalen Startkonto und verwendet ausschließlich reguläre Spielaktionen. Ein einfacher Unternehmensmanager baut, schafft Kapazitäten, richtet Handel ein und forscht. Innerhalb von bis zu 14 simulierten echten Tagen müssen die ursprünglichen sieben Epochen und die erste Neugründung erreichbar sein. Es werden weder Geld noch Freischaltungen injiziert. Ein weiterer Test spielt 45 echte Tage nach: neue Epochen und sämtliche Holdingprogramme müssen mit regulären Aktionen erreichbar bleiben. Dabei werden auch neue Infrastruktur, Materialreserven, Schwerpunktwahl und Forschungsbudgets genutzt.
 

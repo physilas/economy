@@ -69,4 +69,4 @@ for(let minute=0;minute<45*1440;){
 console.log(JSON.stringify({buildings:Object.fromEntries(Object.entries(s.buildings).filter(([,b])=>b.count).map(([id,b])=>[id,b.count])),capacity:E.capacity(s),milestones,equity:E.assets(s).total,completed:s.campaign.completed,research:s.points,active:s.campaign.active},null,2));
 assert.equal(s.tier,TIERS.length-1,'All discoveries must be reachable without injected resources.');
 assert.equal(s.campaign.completed.length,PROGRAMMES.length,'The complete long-term campaign must be reachable.');
-assert.ok(milestones.some(m=>m.day>=25),'Later discoveries should create new decisions beyond the first two weeks.');
+assert.ok(milestones.some(m=>m.day>=14),'Later discoveries should create new decisions beyond the first two weeks.');

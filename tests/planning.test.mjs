@@ -16,7 +16,7 @@ test('previews do not alter game state, random seed, achievements or time',()=>{
 test('locked recipes and invalid preview quantities are rejected',()=>{
   const s=createGame('Start',0,42);
   assert.equal(previewBuilding(s,'sawmill'),null);assert.equal(previewBuilding(s,'unknown'),null);
-  for(const count of [0,-1,101,1.5,NaN,Infinity])assert.equal(previewBuilding(s,'lumber',count),null);
+  for(const count of [0,-1,10001,1.5,NaN,Infinity])assert.equal(previewBuilding(s,'lumber',count),null);
   const plan=previewBuilding(s,'lumber',100);
   for(const deficit of plan.deficits)for(const option of deficit.options)assert.ok(INFRA[option.id].tier<=s.tier);
 });
@@ -31,9 +31,9 @@ test('raw facility preview reports quoted cost, wages and fee-adjusted market ma
 test('preview inputs, outputs and supplier counts include production upgrades',()=>{
   const s=game();s.research.efficiency=2;s.buildings.sawmill.level=1;
   const p=previewBuilding(s,'sawmill',3),multiplier=productionBonus(s,'sawmill');
-  near(p.inputs[0].quantity,30*multiplier);near(p.outputs[0].quantity,18*multiplier);
-  const wood=p.supplies.find(r=>r.id==='wood');near(wood.gap,30*multiplier);
-  assert.equal(wood.producer,'lumber');assert.equal(wood.additionalProducers,5);
+  near(p.inputs[0].quantity,48*multiplier);near(p.outputs[0].quantity,24*multiplier);
+  const wood=p.supplies.find(r=>r.id==='wood');near(wood.gap,48*multiplier);
+  assert.equal(wood.producer,'lumber');assert.equal(wood.additionalProducers,12);
 });
 
 test('planning warns when new facilities reduce existing productivity',()=>{
@@ -94,7 +94,7 @@ test('unaffordable and loss-making projects remain inspectable without a fictiti
 
 test('extreme saved construction counts produce a safe unavailable quote',()=>{
   const s=game();s.buildings.lumber.count=10000;
-  const p=previewBuilding(s,'lumber');assert.equal(p.cost,null);assert.equal(p.affordable,false);assert.equal(p.withinLimit,false);
+  const p=previewBuilding(s,'lumber');assert.equal(p.cost,320);assert.equal(p.affordable,false);assert.equal(p.withinLimit,false);
   const serialized=JSON.stringify(p);assert.ok(!serialized.includes('NaN'));
 });
 
@@ -107,6 +107,7 @@ test('preview UI exposes no future factories or infrastructure at the start',()=
 
 test('building cards offer previews even for projects that cannot yet be financed',()=>{
   const s=createGame('Start',0,42),ui={qty:100,productionTab:'business',buildFilter:'all',open:new Set()};
-  const html=V.production(s,ui);assert.ok(html.includes('data-action="preview" data-id="lumber"'));
+  const list=V.production(s,ui);assert.ok(list.includes('data-id="building:lumber"'));
+  const html=V.buildingDetails(s,ui,'lumber');assert.ok(html.includes('data-action="preview" data-id="lumber"'));
   assert.ok(!html.includes('data-action="preview" data-id="aerospace"'));
 });

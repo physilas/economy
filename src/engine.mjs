@@ -25,14 +25,14 @@ export function createGame(name = 'Mein Unternehmen', now = Date.now(), seed = (
     automation: Object.fromEntries(Object.keys(RESOURCES).map(k => [k, { mode: 'off', low: 20, high: 100 }])),
     stocks: Object.fromEntries(Object.entries(STOCKS).map(([k, d]) => [k, { price: d.base, previous: d.base, history: [d.base], quantity: 0, basis: 0, drip:false, reserve:0 }])),
     properties:Object.fromEntries(Object.keys(PROPERTIES).map(id=>[id,{count:0,basis:0,index:1,occupancy:.9,history:[1]}])),
-    options:[], savingsPlans:[], treasury:{enabled:false,floor:150,target:600,bank:'reserve'}, emergencyNext:0,
+    options:[], savingsPlans:[], bankPlans:[], treasury:{enabled:false,floor:150,target:600,bank:'reserve'}, emergencyNext:0,
     banks: { reserve: 0, savings: 0 }, bonds: [], ventures: [], orders: [], loans: [], debt: 0,
     policy: 'balanced', priority: 'balanced', profitGuard:false, reputation: 50, tier: 0, legacy: 0, prestigeCount: 0,
     campaign:createCampaign(),
     contracts: [], board: [], achievements: [], journal: [], nextId: 1,
     event: null, economy: { cycle: 1, rate: 0.001, inflation: 2, phase: 'Stabil' },
     stats: { built: 0, trades: 0, produced: 0, revenue: 0, expenses: 0, interest: 0, dividends: 0, rent:0, optionPnl:0, grants:0, taxes: 0, contracts: 0, peak: 1200, lastProfit: 0, lastRevenue: 0, lastCosts: 0, history: [], resets: 0 },
-    hourLedger: { revenue: 0, costs: 0 }, dayLedger: { revenue: 0, costs: 0 },
+    hourLedger: { revenue: 0, costs: 0 }, dayLedger: { revenue: 0, costs: 0, taxPaid:0 },
     tutorial: true, settings: { confirmLarge: true },
   };
   updateReports(s,true);
@@ -68,7 +68,7 @@ function priceIntegral(a, b) {
 }
 
 export function quote(s, id, amount, side = 'buy') {
-  if (!RESOURCES[id] || !Number.isFinite(amount) || amount <= 0 || amount > 1e8) return { total: 0, unit: 0, fee: 0, gross: 0 };
+  if (!RESOURCES[id] || !Number.isFinite(amount) || amount <= 0 || amount > 1e10) return { total: 0, unit: 0, fee: 0, gross: 0 };
   const m = s.market[id], l = liquidity(id), direction = side === 'buy' ? 1 : -1;
   const gross = Math.abs(RESOURCES[id].base * m.factor * l * priceIntegral(m.pressure, m.pressure + direction * amount / l));
   const fee = gross * (feeRate(s) + 0.008);
@@ -90,7 +90,7 @@ function expense(s, amount) {
 }
 
 export function trade(s, id, amount, side, automated = false) {
-  if (!RESOURCES[id] || !Number.isFinite(amount) || amount <= 0 || amount > 1e8 || !['buy', 'sell'].includes(side)) return fail('Ungültiger Handelsauftrag.');
+  if (!RESOURCES[id] || !Number.isFinite(amount) || amount <= 0 || amount > 1e10 || !['buy', 'sell'].includes(side)) return fail('Ungültiger Handelsauftrag.');
   if (RESOURCES[id].tier > s.tier) return fail('Diese Ware ist noch nicht freigeschaltet.');
   if (side === 'sell' && s.inventory[id] + 1e-7 < amount) return fail('Nicht genügend Ware im Lager.');
   if (side === 'buy' && s.inventory[id] + amount > warehouseCapacity(s) + 1e-7) return fail('Das Lager ist voll.');
@@ -121,7 +121,7 @@ export function warehouseCapacity(s) { return (500+infraBase(s,'storage'))*(1+s.
 export function workforce(s) { return 12+infraBase(s,'workers'); }
 export function productionBonus(s, id, offline = false) {
   const b = BUILDINGS[id], level = s.buildings[id].level;
-  let mult = (1 + level * 0.18) * (1 + s.research.efficiency * 0.08) * (1 + s.legacy * 0.08) * POLICIES[s.policy].output;
+  let mult = 2 ** level * (1 + s.research.efficiency * 0.08) * (1 + s.legacy * 0.08) * POLICIES[s.policy].output;
   if (id === 'lumber') mult *= 1 + s.research.forestry * 0.2;
   if (['farm', 'cottonFarm'].includes(id)) mult *= (1 + s.research.agronomy * 0.2) * (s.event?.farm || 1);
   if (b.tier >= 4) mult *= 1 + s.research.computing * 0.15;
@@ -180,9 +180,9 @@ export function buildingRate(s, id, offline = false) {
 
 export function buildQuote(s, id, amount = 1, infrastructure = false) {
   const d = infrastructure ? INFRA[id] : BUILDINGS[id];
-  if (!d || !Number.isInteger(amount) || amount < 1 || amount > 100) return null;
-  const n = infrastructure ? s.infra[id] : s.buildings[id].count, growth = infrastructure ? d.growth : 1.13;
-  const cash = d.cost * Math.pow(growth, n) * (Math.pow(growth, amount) - 1) / (growth - 1);
+  if (!d || !Number.isInteger(amount) || amount < 1 || amount > 10000) return null;
+  const n = infrastructure ? s.infra[id] : s.buildings[id].count, growth = infrastructure ? d.growth : 1;
+  const cash = growth === 1 ? d.cost * amount : d.cost * Math.pow(growth, n) * (Math.pow(growth, amount) - 1) / (growth - 1);
   const materials = {};
   let materialCash = 0,ownedMaterialsValue=0;
   for (const [r, q] of Object.entries(d.materials || {})) {
@@ -218,7 +218,7 @@ export function build(s, id, amount = 1, infrastructure = false) {
 
 export function demolish(s, id, amount = 1, infrastructure = false) {
   const d = infrastructure ? INFRA[id] : BUILDINGS[id];
-  if (!d || !Number.isInteger(amount) || amount < 1 || amount > 100) return fail('Ungültige Anzahl.');
+  if (!d || !Number.isInteger(amount) || amount < 1 || amount > 10000) return fail('Ungültige Anzahl.');
   const count = infrastructure ? s.infra[id] : s.buildings[id].count;
   if (amount > count) return fail('So viele Einheiten besitzt du nicht.');
   const book = infrastructure ? s.infraBook[id] : s.buildings[id].book;
@@ -238,7 +238,7 @@ export function setActive(s, id, delta) {
 export function upgradeQuote(s, id) {
   if (!BUILDINGS[id]) return Infinity;
   const own = s.buildings[id];
-  return BUILDINGS[id].cost * 0.65 * Math.pow(2.1, own.level) * Math.pow(Math.max(1, own.count), 0.72);
+  return BUILDINGS[id].cost * 4 * Math.pow(3, own.level) * Math.max(1, own.count);
 }
 export function upgrade(s, id) {
   const own = s.buildings[id];
@@ -247,7 +247,7 @@ export function upgrade(s, id) {
   const cost = upgradeQuote(s, id);
   if (cost > s.cash) return fail('Nicht genügend Geld.');
   s.cash -= cost; own.book += cost; own.level++;
-  return ok(`Ausbaustufe ${own.level}: +18 % Grundproduktion, +8 % Grundlohn je Stufe.`);
+  return ok(`Ausbaustufe ${own.level}: Produktion und Vorproduktverbrauch verdoppelt. +8 % Grundlohn je Stufe.`);
 }
 
 function autoTrade(s, context) {
@@ -330,7 +330,7 @@ export function bankRate(s, id) {
   return Math.min(.0025,base*(1+s.research.finance*.05)*(1+(s.campaign?.bonuses.finance||0)/100));
 }
 export function bankTransfer(s, id, amount, direction) {
-  if (!BANKS[id] || !Number.isFinite(amount) || amount <= 0 || amount > 1e14 || !['deposit', 'withdraw'].includes(direction)) return fail('Ungültiger Betrag.');
+  if (!BANKS[id] || !Number.isFinite(amount) || amount <= 0 || amount > 1e100 || !['deposit', 'withdraw'].includes(direction)) return fail('Ungültiger Betrag.');
   if (direction === 'deposit') {
     if (amount > s.cash + 1e-7) return fail('Nicht genügend Geld.');
     s.cash = Math.max(0, s.cash - amount); s.banks[id] += amount;
@@ -410,7 +410,7 @@ export function investVenture(s, type, amount) {
 
 export function stockTrade(s, id, quantity, side) {
   const d = STOCKS[id], p = s.stocks[id];
-  if (!d || s.tier < 1 || !Number.isInteger(quantity) || quantity < 1 || quantity > 1e7 || !['buy', 'sell'].includes(side)) return fail('Ungültiger Aktienauftrag. Börse ab Epoche Handwerk.');
+  if (!d || s.tier < 1 || !Number.isInteger(quantity) || quantity < 1 || quantity > 1e100 || !['buy', 'sell'].includes(side)) return fail('Ungültiger Aktienauftrag. Börse ab Epoche Handwerk.');
   const gross = p.price * quantity, fee = gross * 0.005;
   if (side === 'buy') {
     if (gross + fee > s.cash) return fail('Nicht genügend Geld.');
@@ -466,6 +466,58 @@ export function createSavingsPlan(s,stock,budget,period=1) {
   return ok('Sparplan eingerichtet. Bei zu wenig freiem Kapital wird die Ausführung übersprungen.');
 }
 export function cancelSavingsPlan(s,id) {s.savingsPlans=s.savingsPlans.filter(p=>p.id!==id);return ok('Sparplan beendet. Gekaufte Anteile bleiben im Depot.');}
+
+export function createBankPlan(s,product,direction,budget,period=1,days=20) {
+  if(s.tier<1||!['reserve','savings','fixed'].includes(product)||!['deposit','withdraw'].includes(direction)||
+    !Number.isFinite(budget)||budget<10||budget>1e12||![1,5,10].includes(period)||s.bankPlans.length>=12)
+    return fail('Bankpläne ab 10 €, alle 1, 5 oder 10 Spieltage. Maximal zwölf Pläne.');
+  if(product==='fixed'&&(direction!=='deposit'||budget<500||![10,20,60].includes(days)||(days===60&&s.tier<2)))
+    return fail('Festgeld-Sparpläne ab 500 €. Auszahlungen erfolgen automatisch bei Fälligkeit.');
+  if(s.bankPlans.some(p=>p.product===product&&p.direction===direction))return fail('Für diese Kombination besteht bereits ein Plan.');
+  s.bankPlans.push({id:s.nextId++,product,direction,budget,period,days,next:s.elapsed+period*DAY,executions:0,skipped:0});
+  return ok(direction==='deposit'?'Banksparplan eingerichtet.':'Auszahlungsplan eingerichtet.');
+}
+export function cancelBankPlan(s,id){s.bankPlans=s.bankPlans.filter(p=>p.id!==id);return ok('Bankplan beendet. Vorhandene Anlagen bleiben erhalten.');}
+function executeBankPlans(s){
+  for(const plan of s.bankPlans){
+    if(plan.next>s.elapsed)continue;
+    const buffer=s.treasury.enabled?s.treasury.floor:50;
+    let executed=false;
+    if(plan.direction==='withdraw'){
+      if(s.banks[plan.product]+1e-7>=plan.budget)executed=bankTransfer(s,plan.product,plan.budget,'withdraw').ok;
+    }else if(s.cash-buffer+1e-7>=plan.budget){
+      executed=plan.product==='fixed'?fixedDeposit(s,plan.budget,plan.days).ok:bankTransfer(s,plan.product,plan.budget,'deposit').ok;
+    }
+    if(executed)plan.executions++;else plan.skipped++;
+    // Missed imported dates never trigger a burst of retroactive investments.
+    plan.next+=Math.max(1,Math.floor((s.elapsed-plan.next)/(plan.period*DAY))+1)*plan.period*DAY;
+  }
+}
+
+// Resolve "all" immediately before the transaction, using the same prices and limits.
+export function maxTransaction(s,kind,id,side){
+  if(kind==='trade'){
+    if(!RESOURCES[id]||RESOURCES[id].tier>s.tier)return 0;
+    if(side==='sell')return s.inventory[id];
+    let lo=0,hi=Math.max(0,Math.min(1e10,warehouseCapacity(s)-s.inventory[id]));
+    if(quote(s,id,hi).total<=s.cash)return hi;
+    for(let i=0;i<60;i++){const mid=(lo+hi)/2;if(quote(s,id,mid).total<=s.cash)lo=mid;else hi=mid;}
+    return lo>1e-7?lo:0;
+  }
+  if(kind==='stock')return s.tier<1||!STOCKS[id]?0:side==='sell'?s.stocks[id].quantity:Math.max(0,Math.floor(s.cash/(s.stocks[id].price*1.005)));
+  if(kind==='property')return !PROPERTIES[id]||PROPERTIES[id].tier>s.tier?0:side==='sell'?s.properties[id].count:Math.max(0,Math.min(100000-s.properties[id].count,Math.floor(s.cash/(PROPERTIES[id].cost*s.properties[id].index*1.02))));
+  if(kind==='bank')return !BANKS[id]?0:side==='withdraw'?s.banks[id]:s.cash;
+  if(kind==='build'||kind==='buildInfra'){
+    const infra=kind==='buildInfra',d=(infra?INFRA:BUILDINGS)[id];if(!d||d.tier>s.tier)return 0;
+    let lo=0,hi=10000-(infra?s.infra[id]:s.buildings[id].count);
+    while(lo<hi){const mid=Math.ceil((lo+hi)/2),q=buildQuote(s,id,mid,infra);if(q&&Number.isFinite(q.total)&&q.total<=s.cash)lo=mid;else hi=mid-1;}
+    return lo;
+  }
+  if(kind==='demolish')return s.buildings[id]?.count||0;
+  if(kind==='demolishInfra')return s.infra[id]||0;
+  return 0;
+}
+
 function executeSavingsPlans(s) {
   for(const plan of s.savingsPlans){
     if(plan.next>s.elapsed)continue;
@@ -479,7 +531,7 @@ function executeSavingsPlans(s) {
 
 export function propertyTrade(s,id,count,side) {
   const d=PROPERTIES[id],p=s.properties[id];
-  if(!d||d.tier>s.tier||!Number.isInteger(count)||count<1||count>100||!['buy','sell'].includes(side))return fail('Ungültige Immobilientransaktion.');
+  if(!d||d.tier>s.tier||!Number.isInteger(count)||count<1||count>100000||!['buy','sell'].includes(side))return fail('Ungültige Immobilientransaktion.');
   const gross=d.cost*p.index*count;
   if(side==='buy'){
     const cost=gross*1.02;if(cost>s.cash||p.count+count>100000)return fail('Guthaben oder Immobilienlimit reicht nicht.');
@@ -683,6 +735,7 @@ function settleMaturities(s) {
     if (l.principal < 0.01 || l.payments <= 0) s.loans = s.loans.filter(x => x !== l);
   }
   executeSavingsPlans(s);
+  executeBankPlans(s);
 }
 
 function hourly(s) {
@@ -713,7 +766,7 @@ function hourly(s) {
   }
   s.stats.lastRevenue = s.hourLedger.revenue; s.stats.lastCosts = s.hourLedger.costs;
   s.stats.lastProfit = s.hourLedger.revenue - s.hourLedger.costs;
-  s.stats.history.push({ at: s.elapsed, wealth: assets(s).total, profit: s.stats.lastProfit });
+  s.stats.history.push(historySnapshot(s));
   if (s.stats.history.length > 96) s.stats.history.shift();
   s.hourLedger = { revenue: 0, costs: 0 };
   if (hour % 6 === 0) refreshBoard(s);
@@ -743,31 +796,59 @@ function marketTick(s, fraction) {
 
 function daily(s) {
   if(s.elapsed%(5*DAY)===0)updateReports(s);
-  const taxable = Math.max(0, s.dayLedger.revenue - s.dayLedger.costs), tax = taxable * 0.12;
-  const paid = Math.min(s.cash, tax); s.cash -= paid; s.debt += tax - paid; s.stats.taxes += tax;
-  s.dayLedger = { revenue: 0, costs: 0 };
-  const dividends={};
-  for(const[id,d]of Object.entries(STOCKS)){
+  // Operating tax is settled each half-second; the day only closes its ledger.
+  settleOperatingTax(s);
+  s.dayLedger = { revenue: 0, costs: 0, taxPaid:0 };
+  const utilization = (s.debt + s.loans.reduce((n, l) => n + l.principal, 0)) / creditLimit(s);
+  if (utilization > 1) { s.reputation = Math.max(0, s.reputation - 1); }
+  else s.reputation = Math.min(100, s.reputation + 0.15);
+}
+
+function settleOperatingTax(s){
+  const target=Math.max(0,s.dayLedger.revenue-s.dayLedger.costs)*.12;
+  const delta=target-(s.dayLedger.taxPaid||0);
+  if(delta>0){const paid=Math.min(s.cash,delta);s.cash-=paid;s.debt+=delta-paid;}
+  else s.cash-=delta; // Later operating costs release tax already paid this day.
+  s.stats.taxes+=delta;s.dayLedger.taxPaid=target;
+}
+
+function accruePayouts(s,seconds){
+  const fraction=seconds/DAY,dividends={};
+  for(const id of Object.keys(STOCKS)){
     if(id==='index')continue;
-    const p=s.stocks[id],payment=Math.min(p.report.dps,p.price*.05);
+    const p=s.stocks[id],payment=Math.min(p.report.dps,p.price*.05)*fraction;
     dividends[id]=payment;p.price-=payment;
   }
   s.stocks.index.price=100*Object.entries(STOCKS).filter(([id])=>id!=='index').reduce((n,[id,d])=>n+s.stocks[id].price/d.base,0)/5;
   dividends.index=100*Object.entries(STOCKS).filter(([id])=>id!=='index').reduce((n,[id,d])=>n+dividends[id]/d.base,0)/5;
-  for (const [id, d] of Object.entries(STOCKS)) {
-    const p = s.stocks[id], gross = p.quantity * dividends[id];
-    const net=gross*.85;
-    if(p.drip){p.reserve+=net;const quantity=Math.floor(p.reserve/(p.price*1.005));if(quantity>0){const cost=quantity*p.price*1.005;p.quantity+=quantity;p.basis+=cost;p.reserve=Math.max(0,p.reserve-cost);}}
-    else s.cash+=net;
-    s.stats.dividends += net; s.stats.taxes += gross * 0.15;
+  for(const id of Object.keys(STOCKS)){
+    const p=s.stocks[id],gross=p.quantity*dividends[id],net=gross*.85;
+    if(p.drip){
+      p.reserve+=net;const quantity=Math.floor(p.reserve/(p.price*1.005));
+      if(quantity>0){const cost=quantity*p.price*1.005;p.quantity+=quantity;p.basis+=cost;p.reserve=Math.max(0,p.reserve-cost);}
+    }else s.cash+=net;
+    s.stats.dividends+=net;s.stats.taxes+=gross*.15;
   }
   for(const[id,d]of Object.entries(PROPERTIES)){
-    const p=s.properties[id],net=Math.max(0,p.count*(d.rent*p.occupancy-d.maintenance)),tax=net*.15;
-    s.cash+=net-tax;s.stats.rent+=net-tax;s.stats.taxes+=tax;
+    const p=s.properties[id],gross=Math.max(0,p.count*(d.rent*p.occupancy-d.maintenance))*fraction;
+    s.cash+=gross*.85;s.stats.rent+=gross*.85;s.stats.taxes+=gross*.15;
   }
-  const utilization = (s.debt + s.loans.reduce((n, l) => n + l.principal, 0)) / creditLimit(s);
-  if (utilization > 1) { s.reputation = Math.max(0, s.reputation - 1); }
-  else s.reputation = Math.min(100, s.reputation + 0.15);
+}
+
+// A bounded set of hourly samples; old saves can keep their shorter sample shape.
+export function historySnapshot(s){
+  const a=assets(s),c=capacity(s);
+  return {at:s.elapsed,wealth:a.total,profit:s.hourLedger.revenue-s.hourLedger.costs,
+    cash:s.cash,revenue:s.hourLedger.revenue,costs:s.hourLedger.costs,
+    interest:s.stats.interest,dividends:s.stats.dividends,rent:s.stats.rent,taxes:s.stats.taxes,
+    debt:a.debt,banks:a.banks,securities:a.securities,inventory:a.inventory,produced:s.stats.produced,points:s.points,
+    staffing:c.staffing,power:c.power,logistics:c.logistics};
+}
+
+export function legacyProgress(s){
+  const reward=prestigeReward(s),threshold=100000000*(reward+1)**2;
+  return {earned:s.legacy,pending:reward,threshold,remaining:Math.max(0,threshold-s.stats.peak),
+    production:s.legacy*.08,research:s.legacy*.04,startCash:s.legacy*500};
 }
 
 function accrueFinance(s, seconds) {
@@ -834,7 +915,8 @@ export function prestige(s, now = Date.now()) {
 export function advance(s, now = Date.now(), options = {}) {
   if (!Number.isFinite(now)) return { seconds: 0, skipped: 0, steps: 0 };
   if (now < s.lastUpdate) return { seconds: 0, skipped: 0, steps: 0, clockBack: true };
-  const elapsed = Math.max(0, (now - s.lastUpdate) / 1000), available = Math.min(elapsed, OFFLINE_LIMIT);
+  const speed=options.speed===100&&!options.offline?100:1;
+  const elapsed = Math.max(0, (now - s.lastUpdate) / 1000), available = Math.min(elapsed*speed, OFFLINE_LIMIT);
   const steps = Math.floor(available / STEP), seconds = steps * STEP;
   if (!steps) return { seconds: 0, skipped: 0, steps: 0 };
   const before = { cash: s.cash, wealth: assets(s).total, produced: s.stats.produced, interest: s.stats.interest, dividends: s.stats.dividends, taxes: s.stats.taxes };
@@ -845,8 +927,10 @@ export function advance(s, now = Date.now(), options = {}) {
     refreshProfitGuard(s,context);
     produce(s, STEP, context);
     accrueFinance(s, STEP);
+    accruePayouts(s, STEP);
     autoTrade(s,context);
     executeOrders(s);
+    settleOperatingTax(s);
     s.elapsed += STEP;
     s.campaign.age+=STEP;
     settleMaturities(s);
@@ -857,10 +941,10 @@ export function advance(s, now = Date.now(), options = {}) {
     if (s.elapsed % HOUR === 0) {hourly(s);context=productionContext(s,!!options.offline);}
     if (options.onProgress && i % 3600 === 0) options.onProgress(i / steps);
   }
-  if (elapsed > OFFLINE_LIMIT) s.lastUpdate = now - (available - seconds) * 1000;
-  else s.lastUpdate += seconds * 1000;
+  if (elapsed*speed > OFFLINE_LIMIT) s.lastUpdate = now - (available - seconds) / speed * 1000;
+  else s.lastUpdate += seconds / speed * 1000;
   const after = assets(s);
-  return { seconds, skipped: Math.max(0, elapsed - OFFLINE_LIMIT), steps,
+  return { seconds, skipped: Math.max(0, elapsed - available/speed), steps,
     cash: s.cash - before.cash, wealth: after.total - before.wealth,
     produced: s.stats.produced - before.produced, interest: s.stats.interest - before.interest,
     dividends: s.stats.dividends - before.dividends, taxes: s.stats.taxes - before.taxes,
@@ -903,6 +987,7 @@ export function validateGame(raw, now = Date.now()) {
     s.properties[id]={count:Math.floor(finite(p.count,0,100000)),basis:moneyValue(p.basis),index:clamp(finite(p.index,1),.45,2.5),occupancy:clamp(finite(p.occupancy,.9),.4,.99),history:cleanHistory(p.history,1)};
   }
   s.options=cleanArray(raw.options,20).filter(o=>o&&Object.hasOwn(RESOURCES,o.resource)&&['put','call'].includes(o.type)).map(o=>({id:finite(o.id),resource:o.resource,type:o.type,quantity:Math.max(1,Math.floor(finite(o.quantity,1,10000))),strike:Math.max(.001,finite(o.strike,1,1e9)),premium:moneyValue(o.premium),volatility:clamp(finite(o.volatility,.085),.01,.5),start:finite(o.start),end:finite(o.end)}));
+  s.bankPlans=cleanArray(raw.bankPlans,12).filter(p=>p&&['reserve','savings','fixed'].includes(p.product)&&['deposit','withdraw'].includes(p.direction)&&(p.product!=='fixed'||p.direction==='deposit')).map(p=>({id:finite(p.id),product:p.product,direction:p.direction,budget:Math.max(p.product==='fixed'?500:10,finite(p.budget,100,1e12)),period:[1,5,10].includes(p.period)?p.period:1,days:[10,20,60].includes(p.days)?p.days:20,next:finite(p.next,s.elapsed+DAY),executions:finite(p.executions),skipped:finite(p.skipped)}));
   s.savingsPlans=cleanArray(raw.savingsPlans,6).filter(p=>p&&Object.hasOwn(STOCKS,p.stock)).map(p=>({id:finite(p.id),stock:p.stock,budget:finite(p.budget,100,1e12),period:[1,5,10].includes(p.period)?p.period:1,next:finite(p.next,s.elapsed+DAY),executions:finite(p.executions),skipped:finite(p.skipped)}));
   if(raw.treasury){const t=raw.treasury;s.treasury={enabled:t.enabled===true,floor:Math.max(50,finite(t.floor,150,1e12)),target:Math.max(50,finite(t.target,600,1e12)),bank:Object.hasOwn(BANKS,t.bank)?t.bank:'reserve'};s.treasury.target=Math.max(s.treasury.floor,s.treasury.target);}
   for (const id of Object.keys(BANKS)) s.banks[id] = moneyValue(raw.banks?.[id]);
@@ -923,8 +1008,9 @@ export function validateGame(raw, now = Date.now()) {
   if (raw.event && EVENTS.some(e => e.name === raw.event.name)) s.event = { ...EVENTS.find(e => e.name === raw.event.name), end: finite(raw.event.end, s.elapsed) };
   if (raw.economy) s.economy = { cycle: clamp(finite(raw.economy.cycle, 1), 0.5, 2), rate: clamp(finite(raw.economy.rate, 0.001), 0.0004, 0.0018), inflation: finite(raw.economy.inflation, 2, 10), phase: ['Stabil', 'Aufschwung', 'Rezession'].includes(raw.economy.phase) ? raw.economy.phase : 'Stabil' };
   for (const key of Object.keys(s.stats)) { if (key !== 'history') s.stats[key] = typeof raw.stats[key] === 'number' && Number.isFinite(raw.stats[key]) ? clamp(raw.stats[key], ['lastProfit','optionPnl'].includes(key) ? -1e100 : 0, 1e100) : s.stats[key]; }
-  s.stats.history = cleanArray(raw.stats.history, 96).filter(h => h && Number.isFinite(h.wealth) && Number.isFinite(h.profit)).map(h => ({ at: finite(h.at), wealth: clamp(h.wealth,-1e100,1e100), profit: clamp(h.profit,-1e100,1e100) }));
+  s.stats.history = cleanArray(raw.stats.history, 96).filter(h => h && Number.isFinite(h.wealth) && Number.isFinite(h.profit)).map(h => ({ at: finite(h.at), wealth: clamp(h.wealth,-1e100,1e100), profit: clamp(h.profit,-1e100,1e100),...Object.fromEntries(['cash','revenue','costs','interest','dividends','rent','taxes','debt','banks','securities','inventory','produced','points','staffing','power','logistics'].filter(key=>typeof h[key]==='number'&&Number.isFinite(h[key])).map(key=>[key,finite(h[key],0,1e100)])) }));
   for (const ledger of ['hourLedger', 'dayLedger']) s[ledger] = { revenue: moneyValue(raw[ledger]?.revenue), costs: moneyValue(raw[ledger]?.costs) };
+  s.dayLedger.taxPaid=moneyValue(raw.dayLedger?.taxPaid);
   s.tutorial = raw.tutorial !== false;
   s.campaign=normalizeCampaign(raw.campaign,s.elapsed,s.stats.peak);
   s.campaign.unlocked ||= s.tier>=3;
