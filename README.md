@@ -33,7 +33,7 @@ Browserdaten sind lokal: Wer sie löscht, verliert auch lokale Spielstände. **E
 
 ## Bedienung und Analyse
 
-- Kompakte Betriebs- und Infrastrukturzeilen: Name, Anzahl, − und +; Details, Ausbau, Pausen und Bauvorschau über ⓘ.
+- Kompakte Betriebs- und Infrastrukturzeilen: Name, aktueller Baupreis für die gewählte Schrittweite, Anzahl, − und +; Details, Ausbau, Pausen und Bauvorschau über ⓘ.
 - **100× halten** in der Kopfleiste beschleunigt alle Simulationssysteme nur während des Haltens. Loslassen, Verlassen des Knopfs, Dialoge, App-Wechsel und Neuladen beenden den Schnelllauf. Offline läuft die normale Zeit weiter.
 - Mengen und Investitionssummen bleiben beim Scrollen oben sichtbar. ×10 und ÷10 ändern die Größenordnung. Gedrückthalten wiederholt Aktionen; Loslassen, Scrollen und App-Wechsel stoppen die Wiederholung.
 - Alle kaufen / verkaufen je Ware, Aktie und Immobilie; alles einzahlen / abheben je Bankkonto. Maximal bauen und komplett abbauen im Info-Dialog.

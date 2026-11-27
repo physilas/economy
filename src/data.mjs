@@ -1,5 +1,5 @@
 export const VERSION = 1;
-export const RELEASE = '2.2.1';
+export const RELEASE = '2.2.2';
 export const STEP = 0.5; // Two real simulation steps per second; hourly rates stay unchanged.
 export const HOUR = 60; // One economy hour takes one real minute.
 export const DAY = 24 * HOUR;
