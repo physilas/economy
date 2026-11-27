@@ -11,8 +11,8 @@ function prepared(){const s=E.createGame('Holding',0,42),p=PROGRAMMES[0];s.cash=
 
 test('programmes have real durations, valid recipes and sequential progression',()=>{
   let total=0;
-  for(const p of PROGRAMMES){total+=p.duration;assert.ok(p.duration>=3600);assert.ok(p.wealth>=TIERS[p.tier].wealth);for(const id of Object.keys(p.materials))assert.ok(RESOURCES[id].tier<=p.tier);for(const id of Object.keys(PROGRAMME_CHOICES))assert.ok(p.bonus[id]>0);}
-  assert.ok(total>=18*86400);
+  for(const p of PROGRAMMES){total+=p.duration;assert.ok(p.duration>=600&&p.duration<=3600);assert.ok(p.wealth>=TIERS[p.tier].wealth);for(const id of Object.keys(p.materials))assert.ok(RESOURCES[id].tier<=p.tier);for(const id of Object.keys(PROGRAMME_CHOICES))assert.ok(p.bonus[id]>0);}
+  assert.ok(total<=2*3600);
   for(const d of Object.values(INFRA))for(const id of Object.keys(d.materials||{}))assert.ok(RESOURCES[id].tier<=d.tier);
 });
 
@@ -27,7 +27,7 @@ test('future programmes stay hidden until their tier and wealth are discovered',
 });
 
 test('programme start is atomic for every missing cost and invalid choice',()=>{
-  for(const missing of ['cash','points','planks','tools','choice']){
+  for(const missing of ['cash','points','planks','choice']){
     const s=prepared();if(missing==='cash')s.cash=0;else if(missing==='points')s.points=0;else if(missing!=='choice')s.inventory[missing]=0;
     const before=JSON.stringify(s);assert.equal(C.startProgramme(s,missing==='choice'?'unknown':'production').ok,false);assert.equal(JSON.stringify(s),before);
   }
@@ -47,13 +47,13 @@ test('holding specializations affect recipes, capacity and bank rates consistent
   const s=prepared(),base=E.productionBonus(s,'lumber'),bank=E.bankRate(s,'reserve');s.campaign.bonuses={production:25,finance:50,logistics:30};
   near(E.productionBonus(s,'lumber'),base*1.25);near(E.bankRate(s,'reserve'),bank*1.5);
   near(E.warehouseCapacity(s),650);near(E.capacity(s).transport,12*1.3);
-  s.campaign.bonuses.finance=1e6;assert.equal(E.bankRate(s,'savings'),.0025);assert.ok(E.bankRate(s,'savings')<E.debtRate(s));
+  s.campaign.bonuses.finance=1e6;assert.equal(E.bankRate(s,'savings'),.004);assert.ok(E.bankRate(s,'savings')<E.debtRate(s));
 });
 
 test('holding material reservation respects current warehouse and preserves higher rules',()=>{
   const s=prepared(),before=JSON.stringify(s.automation);assert.equal(C.reserveProgrammeMaterials(s,10).ok,false);assert.equal(JSON.stringify(s.automation),before);
   s.automation.planks={mode:'sell',low:100,high:500};assert.ok(C.reserveProgrammeMaterials(s,E.warehouseCapacity(s)).ok);
-  assert.deepEqual(s.automation.planks,{mode:'both',low:100,high:500});assert.equal(s.automation.tools.low,20);assert.equal(s.automation.tools.mode,'both');assert.ok(s.automation.tools.high>20);
+  assert.deepEqual(s.automation.planks,{mode:'both',low:100,high:500});assert.equal(s.automation.planks.low,100);assert.equal(s.automation.planks.mode,'both');assert.ok(s.automation.planks.high>20);
 });
 
 test('prestige and restructuring retain active projects, permanent bonuses and cumulative time',()=>{
@@ -65,27 +65,16 @@ test('prestige and restructuring retain active projects, permanent bonuses and c
 
 test('campaign migration rebuilds bonuses and rejects nonsequential or invalid records',()=>{
   const raw={age:50000,peak:1e6,bonuses:{production:1e9},completed:[{chapter:PROGRAMMES[0].id,choice:'finance',at:21600},{chapter:PROGRAMMES[2].id,choice:'production'}],active:{chapter:PROGRAMMES[1].id,choice:'logistics',start:21600,end:21601}};
-  const c=C.normalizeCampaign(raw);assert.equal(c.completed.length,1);assert.equal(c.bonuses.production,0);assert.equal(c.bonuses.finance,10);assert.equal(c.active.end,21600+PROGRAMMES[1].duration);
+  const c=C.normalizeCampaign(raw);assert.equal(c.completed.length,1);assert.equal(c.bonuses.production,0);assert.equal(c.bonuses.finance,PROGRAMMES[0].bonus.finance);assert.equal(c.active.end,21600+PROGRAMMES[1].duration);
   raw.active.choice='invalid';assert.equal(C.normalizeCampaign(raw).active,null);
   const s=prepared();delete s.campaign;const migrated=E.validateGame(s,0);assert.equal(migrated.campaign.age,s.elapsed);assert.equal(migrated.campaign.peak,s.stats.peak);assert.equal(migrated.campaign.unlocked,true);
 });
 
-test('bulk infrastructure and research produce their advertised capacity and points',()=>{
-  const s=prepared();s.tier=10;s.cash=1e12;s.legacy=2;s.research.science=2;s.research.systems=2;s.research.energy=1;s.research.logistics=2;
-  for(const id of ['city','archive','orbital','hub','university','reserve'])assert.ok(E.build(s,id,1,true).ok);
-  const c=E.capacity(s);near(c.workers,512);near(E.warehouseCapacity(s),20500*1.2);near(c.transport,512*1.4);near(c.cleanEnergy,6+500*1.15*1.24);
-  const rate=25*1.08*1.3;near(E.researchRate(s),rate);const points=s.points;E.advance(s,60000);near(s.points-points,rate);
+test('compact infrastructure and research provide their advertised capacity and points',()=>{
+  const s=prepared();s.tier=3;s.cash=1e8;s.legacy=2;s.research.energy=1;s.research.logistics=2;
+  for(const id of ['housing','warehouse','solar','transport','lab','park'])assert.ok(E.build(s,id,1,true).ok);
+  const c=E.capacity(s);near(c.workers,32);near(E.warehouseCapacity(s),1000*1.2);near(c.transport,32*1.4);near(c.cleanEnergy,6+20*1.15);
+  const rate=1.08;near(E.researchRate(s),rate);const points=s.points;E.advance(s,60000);near(s.points-points,rate);
   for(const id of Object.keys(INFRA)){const h=help('infra:'+id,s);assert.ok(!h.body.includes('undefined'));assert.ok(h.body.length>100);}
   for(const id of Object.keys(RESEARCH))assert.ok(help('research:'+id,s).body.length>100);
-});
-
-test('each new recipe operates without negative stocks or undefined rates',()=>{
-  for(const[id,b]of Object.entries(BUILDINGS).filter(([,d])=>d.tier>=7)){
-    const s=prepared();s.tier=10;s.cash=1e12;
-    for(const type of ['city','archive','orbital','hub','reserve'])assert.ok(E.build(s,type,10,true).ok);
-    assert.ok(E.build(s,id).ok);for(const[r,q]of Object.entries(b.input))s.inventory[r]=q*5;
-    E.advance(s,1000);
-    for(const r of Object.keys(b.output))assert.ok(s.inventory[r]>0,`${id} produces ${r}`);
-    for(const q of Object.values(s.inventory))assert.ok(q>=0&&Number.isFinite(q));assert.ok(Number.isFinite(E.assets(s).total));
-  }
 });

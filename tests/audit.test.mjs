@@ -18,7 +18,7 @@ test('margin guard checks the same post-trade prices in bulk and one-second simu
 });
 
 test('a complex guarded economy stays deterministic across irregular catch-up chunks',()=>{
-  const bulk=E.createGame('Guarded catch-up',0,42);bulk.tier=11;bulk.cash=1e12;
+  const bulk=E.createGame('Guarded catch-up',0,42);bulk.tier=3;bulk.cash=1e12;
   for(const id of Object.keys(INFRA))assert.ok(E.build(bulk,id,3,true).ok);
   for(const id of Object.keys(BUILDINGS))assert.ok(E.build(bulk,id).ok);
   for(const id of Object.keys(RESOURCES))bulk.automation[id]={mode:'both',low:100,high:300};
@@ -29,12 +29,12 @@ test('a complex guarded economy stays deterministic across irregular catch-up ch
 });
 
 test('interest, share positions, book values and financial statistics survive large endgame saves',()=>{
-  const s=E.createGame('Large endgame',0,42);s.tier=11;s.cash=1e20;
+  const s=E.createGame('Large endgame',0,42);s.tier=3;s.cash=1e20;
   assert.ok(E.build(s,'lumber',100).ok);assert.ok(E.build(s,'lumber',100).ok);assert.ok(E.build(s,'lumber',50).ok);
   s.buildings.lumber.book=320*(1.13**250-1)/.13; // Existing book value from the former escalating prices.
   assert.ok(s.buildings.lumber.book>1e15);s.buildings.lumber.active=0;
-  s.banks.savings=1e15;s.stocks.sylva.quantity=1e10;
-  assert.ok(E.stockTrade(s,'sylva',1,'buy').ok);assert.equal(s.stocks.sylva.quantity,1e10+1);
+  s.banks.savings=1e15;s.stocks.sylva.quantity=1000;
+  assert.ok(E.stockTrade(s,'sylva',1,'buy').ok);assert.equal(s.stocks.sylva.quantity,1001);
   E.advance(s,DAY*1000);assert.ok(s.banks.savings>1e15);assert.ok(s.stats.peak>1e15);assert.ok(s.campaign.peak>1e15);
   const restored=decode(encode(s),s.lastUpdate).game;
   assert.deepEqual(restored,s);

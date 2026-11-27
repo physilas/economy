@@ -1,7 +1,8 @@
 import {PROGRAMMES,PROGRAMME_CHOICES,RESOURCES} from './data.mjs';
 const numeric=(n,fallback=0,max=1e100)=>typeof n==='number'&&Number.isFinite(n)?Math.max(0,Math.min(max,n)):fallback;
 const result=(ok,message)=>({ok,message});
-export function createCampaign(age=0,peak=0){return {age,peak,unlocked:false,completed:[],active:null,bonuses:{production:0,finance:0,logistics:0}};}
+export const RETIRED_PROGRAMMES={connections:{production:7,finance:12,logistics:10},systems:{production:8,finance:15,logistics:12},networks:{production:9,finance:15,logistics:12},planet:{production:10,finance:20,logistics:15},legacy:{production:12,finance:25,logistics:20},autonomy:{production:15,finance:30,logistics:25}};
+export function createCampaign(age=0,peak=0){return {age,peak,unlocked:false,completed:[],retired:[],active:null,bonuses:{production:0,finance:0,logistics:0}};}
 export function normalizeCampaign(raw,age=0,peak=0){
   const c=createCampaign(numeric(raw?.age,age,1e12),Math.max(peak,numeric(raw?.peak)));
   if(Array.isArray(raw?.completed)){
@@ -12,6 +13,8 @@ export function normalizeCampaign(raw,age=0,peak=0){
       c.bonuses[item.choice]+=chapter.bonus[item.choice];
     }
   }
+  const seen=new Set();
+  if(Array.isArray(raw?.retired))for(const item of raw.retired.slice(0,6))if(item&&Object.hasOwn(RETIRED_PROGRAMMES,item.chapter)&&Object.hasOwn(PROGRAMME_CHOICES,item.choice)&&!seen.has(item.chapter)){seen.add(item.chapter);c.retired.push({chapter:item.chapter,choice:item.choice});c.bonuses[item.choice]+=RETIRED_PROGRAMMES[item.chapter][item.choice];}
   const chapter=PROGRAMMES[c.completed.length],active=raw?.active;
   if(chapter&&active?.chapter===chapter.id&&Object.hasOwn(PROGRAMME_CHOICES,active.choice)){
     const start=numeric(active.start,c.age,c.age);c.active={chapter:chapter.id,choice:active.choice,start,end:start+chapter.duration};

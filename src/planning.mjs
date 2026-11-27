@@ -4,10 +4,7 @@ import {buildQuote,capacity,feeRate,price,quote,productionBonus,supplyPlan,infra
 const positiveCeil=value=>Math.ceil(Math.max(0,value-1e-9));
 const finiteCost=value=>Number.isFinite(value)?value:null;
 const technicalUtilization=c=>Math.min(c.staffing,c.energy?c.potentialEnergy/c.energy:1,c.logistics,1)*c.environment;
-function coalDemand(s,c){
-  const maximum=s.infra.power*infrastructureYield(s,'power','energy');
-  return maximum?s.infra.power*4*Math.min(1,Math.max(0,c.energy-c.cleanEnergy)/maximum):0;
-}
+function utilityCost(s,c){return s.infra.power*12*(c.energy?Math.min(1,c.energy/Math.max(1,c.potentialEnergy)):0);}
 function infrastructureOption(s,id,shortage,perUnit){
   if(INFRA[id].tier>s.tier)return null;
   const quantity=positiveCeil(shortage/perUnit),d=INFRA[id],existing=s.infra[id];
@@ -23,7 +20,7 @@ function infrastructureOption(s,id,shortage,perUnit){
 export function previewBuilding(s,id,quantity=1){
   if(!Object.hasOwn(BUILDINGS,id)||BUILDINGS[id].tier>s.tier||!Number.isInteger(quantity)||quantity<1||quantity>10000)return null;
   const b=BUILDINGS[id],owned=s.buildings[id],quote=buildQuote(s,id,quantity);
-  const planned={...s,buildings:{...s.buildings,[id]:{...owned,count:owned.count+quantity,active:owned.active+quantity}},inventory:{...s.inventory}};
+  const planned={...s,_holding:s._holding,_firm:s._firm,buildings:{...s.buildings,[id]:{...owned,count:owned.count+quantity,active:owned.active+quantity}},inventory:{...s.inventory}};
   const materials=Object.entries(quote.materials).map(([resource,needed])=>{
     const used=Math.min(needed,s.inventory[resource]);planned.inventory[resource]-=used;
     return {id:resource,needed,fromStock:used,purchased:needed-used};
@@ -35,8 +32,7 @@ export function previewBuilding(s,id,quantity=1){
   const wages=quantity*b.wage*(1+owned.level*.08)*POLICIES[s.policy].wage;
   const inputCost=inputs.reduce((total,r)=>total+r.quantity*price(s,r.id)*(1+fee),0);
   const outputValue=outputs.reduce((total,r)=>total+r.quantity*price(s,r.id)*(1-fee),0);
-  const extraCoal=Math.max(0,coalDemand(planned,after)-coalDemand(s,before));
-  const fuelCost=extraCoal*price(s,'coal')*(1+fee),ecoCost=Math.max(0,after.ecoCost-before.ecoCost);
+  const fuelCost=Math.max(0,utilityCost(planned,after)-utilityCost(s,before)),ecoCost=Math.max(0,after.ecoCost-before.ecoCost);
   const tradeMargin=outputValue-inputCost-wages,guarded=s.profitGuard&&tradeMargin<0;
   const fullMargin=tradeMargin-fuelCost-ecoCost;
   const capacityMargin=(guarded?0:tradeMargin*afterUse)-fuelCost-ecoCost;
@@ -49,10 +45,9 @@ export function previewBuilding(s,id,quantity=1){
   for(const deficit of deficits)deficit.additionalShortage=Math.max(0,deficit.shortage-previousDeficits[deficit.metric]);
   const flows=new Map(supplyPlan(planned).map(r=>[r.id,r]));
   const required=new Map(inputs.map(r=>[r.id,r.quantity]));
-  if(extraCoal>0)required.set('coal',(required.get('coal')||0)+extraCoal);
   const supplies=[...required].map(([resource,needed])=>{
     const flow=flows.get(resource)||{input:0,output:0,producers:[]};
-    const consumption=resource==='coal'?flow.input-planned.infra.power*4+coalDemand(planned,after):flow.input;
+    const consumption=flow.input;
     const gap=Math.max(0,consumption-flow.output),producer=flow.producers[0];
     const yieldPerUnit=producer?BUILDINGS[producer].output[resource]*productionBonus(s,producer):0;
     return {id:resource,needed,stock:planned.inventory[resource],companyDemand:consumption,companyOutput:flow.output,gap,

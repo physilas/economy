@@ -1,4 +1,5 @@
 import * as E from './engine.mjs';
+import * as C from './corporate.mjs';
 import * as V from './views.mjs';
 import * as Store from './storage.mjs';
 import { RESOURCES, BUILDINGS, INFRA, RESEARCH, TIERS, BONDS, VENTURES, DAY, RELEASE, PROGRAMME_CHOICES } from './data.mjs';
@@ -14,7 +15,7 @@ import {morph,patchView} from './render.mjs';
 const app = document.querySelector('#app'), dialog = document.querySelector('#dialog');
 const leaseKey = 'null-economy:lease', sessionId = globalThis.crypto?.randomUUID?.() || String(Math.random());
 let game = null, running = false, busy = false, pending = null, toastTimer, lastSaveAttempt = 0, worker = null, registration = null, installPrompt = null, queuedDiscovery = null, speedPointer = null, repeating = false, detailBuilding = null;
-const ui = { speed:1, screen:'menu', tab:'overview', productionTab:'business', financeTab:'bank', buildFilter:'all', marketFilter:'all', qty:1, amount:100, fixedDays:20,optionResource:'wood',optionType:'put',optionDays:3,planStock:'sylva',planPeriod:1, open:new Set(), offlineReady:false, updateReady:false, lastSaved:0, saveError:'', previousScreen:'menu' };
+const ui = { companyId:'holding',companyTab:'owned',speed:1, screen:'menu', tab:'overview', productionTab:'business', financeTab:'bank', buildFilter:'all', marketFilter:'all', qty:1, amount:100, fixedDays:20,optionResource:'wood',optionType:'put',optionDays:3,planStock:'sylva',planPeriod:1, open:new Set(), offlineReady:false, updateReady:false, lastSaved:0, saveError:'', previousScreen:'menu' };
 
 function toast(message, error = false) {
   const node = document.querySelector('#toast'); node.textContent = message; node.className = `visible${error ? ' error' : ''}`;
@@ -58,10 +59,11 @@ function render(live=true) {
   if (busy) return;
   normalizeUI(ui,game);
   if (ui.screen === 'menu') { app.innerHTML = V.menu(game,ui); return; }
+  const business=game?C.scopeCompany(game,ui.companyId):null;
   const content = ui.tab === 'saves' ? V.savesView(game,ui,saves()) : ui.tab === 'guide' ? V.guide(game) : !game ? '' :
-    ui.tab === 'overview' ? V.overview(game,ui) : ui.tab === 'production' ? V.production(game,ui) : ui.tab === 'market' ? V.market(game,ui) :
-    ui.tab === 'finance' ? V.finance(game,ui) : ui.tab === 'research' ? V.researchView(game,ui) : ui.tab === 'contracts' ? V.contracts(game) :
-    ui.tab === 'programmes' ? V.programmes(game) : ui.tab === 'journal' ? V.journal(game) : ui.tab === 'statistics' ? V.statistics(game) : ui.tab==='analysis'?V.analysis(game,ui):ui.tab==='legacy'?V.legacyView(game):V.more(game);
+    ui.tab === 'companies' ? V.companiesView(game,ui) : ui.tab === 'overview' ? V.overview(business,ui) : ui.tab === 'production' ? V.production(business,ui) : ui.tab === 'market' ? V.market(business,ui) :
+    ui.tab === 'finance' ? V.finance(business,ui) : ui.tab === 'research' ? V.researchView(business,ui) : ui.tab === 'contracts' ? V.contracts(business) :
+    ui.tab === 'programmes' ? V.programmes(game) : ui.tab === 'journal' ? V.journal(business) : ui.tab === 'statistics' ? V.statistics(business) : ui.tab==='analysis'?V.analysis(business,ui):ui.tab==='legacy'?V.legacyView(game):V.more(game);
   if (game && ui.screen === 'game') writeView(V.frame(game,ui,content),live);
   else app.innerHTML = `<div class="shell"><header class="topbar"><button class="brand" data-action="menu">${mark()}NULL</button><button class="small" data-action="menu">Zurück</button></header><main id="content" class="mt24">${content}</main></div>`;
 }
@@ -158,14 +160,14 @@ function prepareNew() {
 }
 
 function orderDialog(id) {
-  const p=E.price(game,id);
-  openDialog('Ein Preis. Eine Bedingung.',`<p>Limitauftrag für <strong>${RESOURCES[id].name}</strong>. Vollständige Ausführung zum Durchschnittspreis inklusive Gebühren.</p><div class="auto-form mt16"><div><label for="order-side">Richtung</label><select id="order-side"><option value="buy">Kaufen</option><option value="sell">Verkaufen</option></select></div><div><label for="order-quantity">Anzahl</label><input id="order-quantity" type="number" inputmode="numeric" min="1" max="1000000" value="${ui.qty}"></div><div><label for="order-limit">Limit je Stück (€)</label><input id="order-limit" type="number" inputmode="decimal" min="0.01" step="0.01" value="${p.toFixed(2)}"></div></div>`,()=>finish(E.placeOrder(game,id,document.querySelector('#order-side').value,Number(document.querySelector('#order-quantity').value),Number(document.querySelector('#order-limit').value))),'Auftrag anlegen');
+  const business=C.scopeCompany(game,ui.companyId),p=E.price(business,id);
+  openDialog('Ein Preis. Eine Bedingung.',`<p>Limitauftrag für <strong>${RESOURCES[id].name}</strong>. Vollständige Ausführung zum Durchschnittspreis inklusive Gebühren.</p><div class="auto-form mt16"><div><label for="order-side">Richtung</label><select id="order-side"><option value="buy">Kaufen</option><option value="sell">Verkaufen</option></select></div><div><label for="order-quantity">Anzahl</label><input id="order-quantity" type="number" inputmode="numeric" min="1" max="1000000" value="${ui.qty}"></div><div><label for="order-limit">Limit je Stück (€)</label><input id="order-limit" type="number" inputmode="decimal" min="0.01" step="0.01" value="${p.toFixed(2)}"></div></div>`,()=>finish(E.placeOrder(business,id,document.querySelector('#order-side').value,Number(document.querySelector('#order-quantity').value),Number(document.querySelector('#order-limit').value))),'Auftrag anlegen');
 }
 
 function openBuildingPreview(id,quantity=ui.qty){
-  const plan=previewBuilding(game,id,quantity);
+  const business=C.scopeCompany(game,ui.companyId),plan=previewBuilding(business,id,quantity);
   if(!plan){toast('Dieser Bauplan ist noch nicht verfügbar.',true);return;}
-  const build=plan.affordable?()=>{const oldTier=game.tier;finish(E.build(game,id,quantity),oldTier);}:null;
+  const build=plan.affordable?()=>{const oldTier=game.tier;finish(E.build(business,id,quantity),oldTier);}:null;
   openDialog(`Bauplan: ${BUILDINGS[id].name}`,V.buildingPreview(plan),build,`${quantity}× bauen`);
   dialog.dataset.previewQuantity=String(quantity);
 }
@@ -177,6 +179,7 @@ function installHelp() {
 
 async function action(button) {
   const action=button.dataset.action,id=button.dataset.id,side=button.dataset.side;
+  const business=game?C.scopeCompany(game,ui.companyId):null;
   if(busy || button.disabled)return;
   if(action==='speed')return;
   if(action==='closeDialog'){closeDialog();return;}
@@ -197,10 +200,10 @@ async function action(button) {
   if(action==='saves'||action==='guide'){go(action);return;}
   if(action==='install'){installHelp();return;}
   if(action==='info'){
-    const item=help(id,game);
+    const item=help(id,business);
     if(id.startsWith('building:')){
       const key=id.split(':')[1];
-      openDialog(item.title,V.buildingDetails(game,ui,key)+`<details class="help-more" data-preserve-open><summary>Rechenregeln & Details</summary>${item.body}</details>`);
+      openDialog(item.title,V.buildingDetails(business,ui,key)+`<details class="help-more" data-preserve-open><summary>Rechenregeln & Details</summary>${item.body}</details>`);
       detailBuilding=key;
     }else if(id.startsWith('infra:')){
       const key=id.split(':')[1];
@@ -231,6 +234,32 @@ async function action(button) {
   if(action==='deleteSlot'){openDialog('Spielstand löschen?','<p>Dieser manuelle Speicherplatz und seine Sicherungskopie werden gelöscht.</p>',()=>{try{Store.deleteSave(id);render();toast('Spielstand gelöscht.');}catch(error){toast(error.message,true);}},'Löschen');return;}
   if(!game)return;
   const oldTier=game.tier;
+  const field=id=>document.getElementById(id)?.value;
+  if(action==='companyTab'){ui.companyTab=id;go('companies');return;}
+  if(action==='operateCompany'){const c=C.company(game,id);if(c&&C.controlled(game,c)){ui.companyId=id;go('production');}return;}
+  if(action==='holdingStocks'){ui.companyId='holding';ui.financeTab='stocks';go('finance');return;}
+  if(action==='companyTrade'){ui.companyId='holding';ui.financeTab='stocks';go('finance');return;}
+  if(action==='newCompany'){openDialog('Eine eigene Gesellschaft.',V.newCompanyForm(),()=>finish(C.createCompany(game,field('firm-name'),field('firm-focus'),Number(field('firm-capital')))),'Gründen');return;}
+  if(action==='companySettings'){openDialog('Führung und Kapital.',V.companySettingsForm(game,id),()=>finish(C.configureCompany(game,id,{name:field('firm-name'),ceo:field('firm-ceo')||null,mandate:field('firm-mandate'),reserve:Number(field('firm-reserve')),budget:Number(field('firm-budget')),payout:Number(field('firm-payout'))/100})),'Mandat speichern');return;}
+  if(action==='parentSettings'){openDialog('Deine Holding.',V.parentSettingsForm(game),()=>finish(C.setParentPayout(game,Number(field('parent-payout'))/100)),'Quote speichern');return;}
+  if(action==='reinvestWallet'){openDialog('Privatvermögen reinvestieren.',`<label for="wallet-value">Betrag (€)</label><input id="wallet-value" type="number" min="1" value="${Math.floor(game.group.wallet)}"><p>Du erhältst neue Holdinganteile zum anteiligen Konzern-Eigenkapital. Restbeträge bleiben privat verfügbar.</p>`,()=>finish(C.reinvestWallet(game,Number(field('wallet-value')))),'Reinvestieren');return;}
+  if(action==='companyCapital'){openDialog('Kapital übertragen.',`<label for="capital-direction">Richtung</label><select id="capital-direction"><option value="deposit">Holding an Tochter</option><option value="withdraw">Tochter an Holding</option></select><label for="capital-value" class="mt16">Betrag (€)</label><input id="capital-value" type="number" min="1" value="${ui.amount}"><p>Freie Überträge erfordern 100 % Eigentum. Bei Fremdanteilen stehen Kredite und anteilige Dividenden zur Verfügung.</p>`,()=>finish(C.transferCapital(game,id,Number(field('capital-value')),field('capital-direction'))),'Übertragen');return;}
+  if(action==='companyForm'){const current=id==='holding'?game.group.parent:C.company(game,id);openDialog('Gesellschaftsform wählen.',`<label for="firm-form">Neue Rechtsform</label><select id="firm-form">${Object.entries(C.FORMS).map(([key,d])=>`<option value="${key}"${key===current.form?' selected':''}>${d.name} · ${V.cash(d.fee)} Umwandlung · ${V.cash(d.daily)} / Tag</option>`).join('')}</select><p>Einzelunternehmen sind auf das Stammgeschäft ohne Fremdanteile beschränkt. GmbHs erlauben private Partner. AGs können an die Börse gehen und neue Aktien ausgeben. Jede Firma finanziert ihre eigenen Verbindlichkeiten.</p>`,()=>finish(C.convertCompany(game,id,field('firm-form'))),'Umwandeln');return;}
+  if(action==='listCompany'){openDialog('An die Börse gehen?', '<p>Die Firma erhält handelbare Aktien. Der Börsengang kostet 2 % des Unternehmenswerts, mindestens 500 €. Er verändert die Eigentumsquote zunächst nicht. Eine anschließende Kapitalerhöhung bringt Geld von neuen Eigentümern in die Firma.</p>',()=>finish(C.listCompany(game,id)),'Börsengang');return;}
+  if(action==='raiseCapital'){openDialog('Wachstum mit neuen Aktien.',`<label for="issue-value">Neues Kapital (€)</label><input id="issue-value" type="number" min="1" value="${ui.amount}"><p>Bis 30 % des Unternehmenswerts je Runde; frühestens alle fünf Spieltage. 2 % Emissionskosten. Bestehende Anteile werden verwässert, zusätzliche Mittel bleiben in der Firma.</p>`,()=>finish(C.raiseCapital(game,id,Number(field('issue-value')))),'Aktien ausgeben');return;}
+  if(action==='ownShareTrade'){const c=C.company(game,id);openDialog('Eigene Unternehmensanteile.',`<p>${V.esc(c.name)} · ${V.pct(C.ownership(game,c),1)} Eigentum · ${V.money(C.companyValue(game,c)/c.shares,2)} je Anteil</p><label for="own-side">Richtung</label><select id="own-side"><option value="buy">Von Fremdeigentümern zurückkaufen</option><option value="sell">An Fremdeigentümer verkaufen</option></select><label class="mt16" for="own-quantity">Aktienzahl</label><input id="own-quantity" type="number" min="1" value="${ui.qty}"><p>0,5 % Handelskosten. Der Verkauf bestehender Anteile zahlt Geld an die Holding; neue Aktien finanzieren dagegen die Tochter.</p>`,()=>finish(C.tradeOwnShares(game,id,Number(field('own-quantity')),field('own-side'))),'Handeln');return;}
+  if(action==='inspectCompany'){finish(C.inspectCompany(game,id));return;}
+  if(action==='privateOffer'){const c=C.company(game,id),o=c.offer;openDialog('Mit Eigentümern verhandeln.',`<p>${V.esc(c.name)} · ${c.owner==='legacy'?'Der Gründer verlangt eine Prämie für die Abgabe seiner Kontrolle.':'Der Eigentümer schätzt schnelle Liquidität.'}</p><label for="offer-percent">Anteil (%)</label><input id="offer-percent" type="number" min="0.01" max="100" value="${o?o.quantity/c.shares*100:25}"><label class="mt16" for="offer-price">Gesamtes Kaufangebot (€)</label><input id="offer-price" type="number" min="1" value="${Math.ceil(o?.counter||C.companyValue(game,c)*.25)}"><label class="mt16" for="offer-terms">Zahlungsart</label><select id="offer-terms"><option value="cash">Sofort vollständig bezahlen</option><option value="sellerLoan">50 % jetzt, 50 % in 10 Spieltagen</option></select><p class="fine-print">Ein Angebot allein kauft keine Anteile. Bei Annahme kannst du den Kauf abschließen. Verkäuferfinanzierung erhöht den verlangten Preis und bleibt eine verbindliche Schuld.</p>`,()=>finish(C.offerPrivate(game,id,Number(field('offer-percent')),Number(field('offer-price')),field('offer-terms'))),'Angebot abgeben');return;}
+  if(action==='acceptOffer'){finish(C.acceptOffer(game,id));return;}
+  if(action==='buyRemaining'){openDialog('Die restlichen Anteile.', '<p>Bei börsennotierten Firmen werden alle verfügbaren Restanteile zum Marktpreis einschließlich Preiseffekt erworben. Private Eigentümer erhalten ein Angebot mit 20 % Prämie, das du anschließend abschließen kannst.</p>',()=>finish(C.buyRemaining(game,id)),'Restanteile anfragen');return;}
+  if(action==='liquidateCompany'||action==='restructure'&&ui.companyId!=='holding'){const target=action==='liquidateCompany'?id:ui.companyId;openDialog('Diese Gesellschaft abwickeln?', '<p>Die überschuldete, vollständig eigene Tochter gibt ihre Vermögenswerte an ihre Gläubiger ab. Offene Firmenfinanzierungen müssen vorher abgewickelt werden. Die übrige Holding und ihre Firmen bleiben bestehen.</p>',()=>{const r=C.liquidateCompany(game,target);if(r.ok){ui.companyId='holding';ui.tab='companies';}finish(r);},'Gesellschaft abwickeln');return;}
+  if(action==='mergeCompany'){openDialog('Mit der Holding verschmelzen?', '<p>Bestände, Anlagen, Kassen und Verbindlichkeiten gehen in das Stammgeschäft über. Die Tochter wird aufgelöst. Offene Konzernverträge und Finanzierungen müssen zuvor beendet werden.</p>',()=>{const r=C.mergeCompany(game,id);if(r.ok)ui.companyId='holding';finish(r);},'Verschmelzen');return;}
+  if(action==='transferAsset'){openDialog('Assets einem Unternehmen zuordnen.',V.transferAssetForm(game),()=>{const[kind,key]=field('asset-kind').split(':');finish(C.transferAsset(game,field('asset-from'),field('asset-to'),kind,key,Number(field('asset-count'))));},'Übertragen');return;}
+  if(action==='newAgreement'){openDialog('Firmen miteinander verbinden.',V.agreementForm(game),()=>{const[kind,resource]=field('agreement-asset').split(':');finish(C.createAgreement(game,{kind,resource,from:field('agreement-from'),to:field('agreement-to'),quantity:Number(field('agreement-quantity')),price:Number(field('agreement-price')),days:Number(field('agreement-days'))}));},'Vertrag schließen');return;}
+  if(action==='repayCorporateLoan'){finish(C.repayCorporateLoan(game,Number(id)));return;}
+  if(action==='cancelAgreement'){finish(C.cancelAgreement(game,Number(id)));return;}
+  if(action==='newCorporateLoan'){openDialog('Ein Unternehmen finanzieren.',`<label for="credit-lender">Kreditgeber</label><select id="credit-lender"><option value="holding">${V.esc(game.name)}</option>${C.controlledCompanies(game).map(c=>`<option value="${c.id}">${V.esc(c.name)}</option>`).join('')}</select><label class="mt16" for="credit-company">Schuldner</label><select id="credit-company">${game.group.companies.map(c=>`<option value="${c.id}">${V.esc(c.name)}</option>`).join('')}</select><label class="mt16" for="credit-value">Kreditbetrag (€)</label><input id="credit-value" type="number" min="1" value="${ui.amount}"><p>Der Zins hängt von der Verschuldung ab, freie Sicherheiten begrenzen den Betrag. Die Firma zahlt täglich Zins und bis zu 1/20 Tilgung. Zahlungsstörungen können Verluste verursachen.</p>`,()=>finish(C.lendToCompany(game,field('credit-company'),Number(field('credit-value')),field('credit-lender'))),'Kredit vergeben');return;}
+
   if(action==='saveSlot'){
     const existing=saves().find(s=>s.slot===id);
     if(existing&&!existing.empty)openDialog('Spielstand überschreiben?',`<p>„${V.esc(existing.name)}“ wird durch deinen aktuellen Stand ersetzt.</p>`,()=>{safeSave(id,false);render();},'Speichern');
@@ -254,80 +283,81 @@ async function action(button) {
     openBuildingPreview(id,quantity);
     dialog.querySelector(`button[data-action="previewQuantity"][data-delta="${delta}"]:not(:disabled)`)?.focus({preventScroll:true});return;
   }
-  if(action==='build'||action==='buildInfra'){finish(E.build(game,id,ui.qty,action==='buildInfra'),oldTier);return;}
-  if(action==='demolish'||action==='demolishInfra'){finish(E.demolish(game,id,ui.qty,action==='demolishInfra'));return;}
+  if(action==='build'||action==='buildInfra'){finish(E.build(business,id,ui.qty,action==='buildInfra'),oldTier);return;}
+  if(action==='demolish'||action==='demolishInfra'){finish(E.demolish(business,id,ui.qty,action==='demolishInfra'));return;}
   if(['bulkBuild','bulkBuildInfra','bulkDemolish','bulkDemolishInfra'].includes(action)){
     const kind={bulkBuild:'build',bulkBuildInfra:'buildInfra',bulkDemolish:'demolish',bulkDemolishInfra:'demolishInfra'}[action];
-    const count=E.maxTransaction(game,kind,id),isBuild=kind.startsWith('build'),infra=kind.endsWith('Infra');
+    const count=E.maxTransaction(business,kind,id),isBuild=kind.startsWith('build'),infra=kind.endsWith('Infra');
     if(!count){toast('Keine Einheiten verfügbar oder bezahlbar.',true);return;}
     const name=(infra?INFRA:BUILDINGS)[id].name;
-    const cost=isBuild?E.buildQuote(game,id,count,infra).total:null;
-    openDialog(isBuild?'Maximale Anzahl bauen?':'Alle Einheiten abbauen?',`<p>${V.number(count)}× ${name}${isBuild?` für aktuell ${V.cash(cost)}`:'. Rückbau erstattet 45 % des Buchwerts'}.</p>`,()=>finish(isBuild?E.build(game,id,count,infra):E.demolish(game,id,count,infra)),isBuild?'Bauen':'Alle abbauen');return;
+    const cost=isBuild?E.buildQuote(business,id,count,infra).total:null;
+    openDialog(isBuild?'Maximale Anzahl bauen?':'Alle Einheiten abbauen?',`<p>${V.number(count)}× ${name}${isBuild?` für aktuell ${V.cash(cost)}`:'. Rückbau erstattet 45 % des Buchwerts'}.</p>`,()=>finish(isBuild?E.build(business,id,count,infra):E.demolish(business,id,count,infra)),isBuild?'Bauen':'Alle abbauen');return;
   }
-  if(action==='active'){finish(E.setActive(game,id,Number(button.dataset.delta)));return;}
-  if(action==='pause'){const own=game.buildings[id];finish(E.setActive(game,id,own.active?-own.active:own.count));return;}
-  if(action==='upgrade'){finish(E.upgrade(game,id));return;}
+  if(action==='active'){finish(E.setActive(business,id,Number(button.dataset.delta)));return;}
+  if(action==='pause'){const own=business.buildings[id];finish(E.setActive(business,id,own.active?-own.active:own.count));return;}
+  if(action==='upgrade'){finish(E.upgrade(business,id));return;}
   if(['tradeAll','stockAll','bankAll','propertyAll'].includes(action)){
-    const kind={tradeAll:'trade',stockAll:'stock',bankAll:'bank',propertyAll:'property'}[action],amount=E.maxTransaction(game,kind,id,side);
+    const kind={tradeAll:'trade',stockAll:'stock',bankAll:'bank',propertyAll:'property'}[action],amount=E.maxTransaction(business,kind,id,side);
     if(!amount){toast('Kein Bestand oder kein freies Kaufbudget.',true);return;}
-    const fn={trade:E.trade,stock:E.stockTrade,bank:E.bankTransfer,property:E.propertyTrade}[kind];finish(fn(game,id,amount,side),oldTier);return;
+    const fn={trade:E.trade,stock:E.stockTrade,bank:E.bankTransfer,property:E.propertyTrade}[kind];finish(fn(business,id,amount,side),oldTier);return;
   }
-  if(action==='trade'){finish(E.trade(game,id,ui.qty,side),oldTier);return;}
-  if(action==='policy'){game.policy=id;finish(Eresult('Unternehmensstrategie geändert.'));return;}
-  if(action==='profitGuard'){game.profitGuard=!game.profitGuard;finish(Eresult(game.profitGuard?'Margenwächter aktiv. Bei negativer Handelsmarge pausieren Betriebe automatisch.':'Margenwächter ausgeschaltet.'));return;}
-  if(action==='priority'){game.priority=id;finish(Eresult('Produktionsreihenfolge geändert.'));return;}
+  if(action==='trade'){finish(E.trade(business,id,ui.qty,side),oldTier);return;}
+  if(action==='policy'){business.policy=id;finish(Eresult('Unternehmensstrategie geändert.'));return;}
+  if(action==='profitGuard'){business.profitGuard=!business.profitGuard;finish(Eresult(business.profitGuard?'Margenwächter aktiv. Bei negativer Handelsmarge pausieren Betriebe automatisch.':'Margenwächter ausgeschaltet.'));return;}
+  if(action==='priority'){business.priority=id;finish(Eresult('Produktionsreihenfolge geändert.'));return;}
   if(action==='setupSupplies'){
-    openDialog('Vorprodukte bevorraten?','<p>Die benötigten Vorprodukte werden am Markt für etwa zwei Spielstunden eingekauft. Bereits vorhandene Verkaufseinstellungen bleiben mit ausreichend Abstand erhalten. Die Einkäufe kosten laufend Geld und nutzen deine freie Betriebskasse.</p>',()=>finish(E.setupSupplies(game,id)),'Einkauf einrichten');return;
+    openDialog('Vorprodukte bevorraten?','<p>Die benötigten Vorprodukte werden am Markt für etwa zwei Spielstunden eingekauft. Bereits vorhandene Verkaufseinstellungen bleiben mit ausreichend Abstand erhalten. Die Einkäufe kosten laufend Geld und nutzen deine freie Betriebskasse.</p>',()=>finish(E.setupSupplies(business,id)),'Einkauf einrichten');return;
   }
   if(action==='goResource'){ui.marketFilter='all';ui.open.add(`m-${id}`);go('market');return;}
-  if(action==='treasuryToggle'){finish(E.setTreasury(game,'enabled',!game.treasury.enabled));return;}
-  if(action==='treasuryStep'){finish(E.setTreasury(game,id,game.treasury[id]+Number(button.dataset.delta)));return;}
-  if(action==='drip'){finish(E.toggleDividendReinvestment(game,id));return;}
-  if(action==='createBankPlan'){finish(E.createBankPlan(game,ui.bankPlanProduct,ui.bankPlanDirection,ui.amount,ui.planPeriod,ui.fixedDays));return;}
-  if(action==='cancelBankPlan'){finish(E.cancelBankPlan(game,Number(id)));return;}
-  if(action==='createPlan'){finish(E.createSavingsPlan(game,ui.planStock,ui.amount,ui.planPeriod));return;}
-  if(action==='cancelPlan'){finish(E.cancelSavingsPlan(game,Number(id)));return;}
-  if(action==='property'){finish(E.propertyTrade(game,id,ui.qty,side),oldTier);return;}
-  if(action==='emergency'){finish(E.emergencyAid(game));return;}
+  if(action==='treasuryToggle'){finish(E.setTreasury(business,'enabled',!business.treasury.enabled));return;}
+  if(action==='treasuryStep'){finish(E.setTreasury(business,id,business.treasury[id]+Number(button.dataset.delta)));return;}
+  if(action==='drip'){finish(E.toggleDividendReinvestment(business,id));return;}
+  if(action==='createBankPlan'){finish(E.createBankPlan(business,ui.bankPlanProduct,ui.bankPlanDirection,ui.amount,ui.planPeriod,ui.fixedDays));return;}
+  if(action==='cancelBankPlan'){finish(E.cancelBankPlan(business,Number(id)));return;}
+  if(action==='createPlan'){finish(E.createSavingsPlan(business,ui.planStock,ui.amount,ui.planPeriod));return;}
+  if(action==='cancelPlan'){finish(E.cancelSavingsPlan(business,Number(id)));return;}
+  if(action==='property'){finish(E.propertyTrade(business,id,ui.qty,side),oldTier);return;}
+  if(action==='emergency'){finish(E.emergencyAid(business));return;}
   if(action==='restructure'){
     openDialog('Ein tragfähiger Neustart.',`<p>Eine Sanierung gibt <strong>alle Produktionsanlagen, Infrastruktur, Waren und Finanzanlagen</strong> ab und löscht sämtliche Schulden. Du beginnst mit 600 €, einer kleinen Materialreserve und einem Holzfäller.</p><p>Forschung, bereits entdeckte Inhalte, Meilensteine, Vermächtnispunkte und Holdingprogramme bleiben erhalten. Deine Reputation fällt auf 15. Exportiere deinen Stand vorher, wenn du ihn behalten möchtest.</p>`,()=>{const next=E.restructure(game);if(next){game=next;ui.tab='overview';ui.open.clear();finish(Eresult('Die Sanierung ist abgeschlossen. Dein Wissen bleibt.'));}else toast('Nutze zuerst vorhandene liquide Mittel. Sanierung ist nur bei Überschuldung und fast leerer Kasse möglich.',true);},'Sanierung durchführen');return;
   }
   if(action==='buyOption'){
-    const q=E.optionQuote(game,ui.optionResource,ui.optionType,ui.qty,ui.optionDays),resource=ui.optionResource,type=ui.optionType,quantity=ui.qty,days=ui.optionDays;
-    openDialog('Eine Grenze für dein Risiko.',`<p>${quantity} Einheiten ${RESOURCES[resource].name}: ${type==='put'?'Schutz gegen fallende':'Schutz gegen steigende'} Preise. Laufzeit ${V.duration(days*DAY)} echt.</p><p>Prämie und maximaler Verlust: <strong>${V.money(q.premium,2)}</strong>. Abrechnung zum Außenmarktpreis, ohne Warenlieferung. Keine Nachschusspflicht.</p>`,()=>finish(E.buyOption(game,resource,type,quantity,days)),'Absicherung kaufen');return;
+    const q=E.optionQuote(business,ui.optionResource,ui.optionType,ui.qty,ui.optionDays),resource=ui.optionResource,type=ui.optionType,quantity=ui.qty,days=ui.optionDays;
+    openDialog('Eine Grenze für dein Risiko.',`<p>${quantity} Einheiten ${RESOURCES[resource].name}: ${type==='put'?'Schutz gegen fallende':'Schutz gegen steigende'} Preise. Laufzeit ${V.duration(days*DAY)} echt.</p><p>Prämie und maximaler Verlust: <strong>${V.money(q.premium,2)}</strong>. Abrechnung zum geglätteten Marktpreis einschließlich des Einflusses eigener Verkäufe. Keine Warenlieferung. Keine Nachschusspflicht.</p>`,()=>finish(E.buyOption(business,resource,type,quantity,days)),'Absicherung kaufen');return;
   }
-  if(action==='sellOption'){finish(E.sellOption(game,Number(id)));return;}
+  if(action==='sellOption'){finish(E.sellOption(business,Number(id)));return;}
   if(action==='autoStep'){
-    const field=button.dataset.field,a=game.automation[id];a[field]=E.clamp(a[field]+Number(button.dataset.delta),0,1e9);
+    const field=button.dataset.field,a=business.automation[id];a[field]=E.clamp(a[field]+Number(button.dataset.delta),0,1e9);
     if(a.low>a.high){if(field==='low')a.high=a.low;else a.low=a.high;}
     finish(Eresult('Automatik angepasst.'));return;
   }
   if(action==='orderDialog'){orderDialog(id);return;}
-  if(action==='cancelOrder'){finish(E.cancelOrder(game,Number(id)));return;}
-  if(action==='bank'){finish(E.bankTransfer(game,id,ui.amount,side),oldTier);return;}
-  if(action==='fixed'){finish(E.fixedDeposit(game,ui.amount,ui.fixedDays));return;}
-  if(action==='redeemFixed'){openDialog('Festgeld vorzeitig auflösen?','<p>Du erhältst 98 % des ursprünglich angelegten Kapitals. Alle aufgelaufenen Zinsen entfallen.</p>',()=>finish(E.redeemFixed(game,Number(id))),'Auflösen');return;}
+  if(action==='cancelOrder'){finish(E.cancelOrder(business,Number(id)));return;}
+  if(action==='bank'){finish(E.bankTransfer(business,id,ui.amount,side),oldTier);return;}
+  if(action==='fixed'){finish(E.fixedDeposit(business,ui.amount,ui.fixedDays));return;}
+  if(action==='redeemFixed'){openDialog('Festgeld vorzeitig auflösen?','<p>Du erhältst 98 % des ursprünglich angelegten Kapitals. Alle aufgelaufenen Zinsen entfallen.</p>',()=>finish(E.redeemFixed(business,Number(id))),'Auflösen');return;}
   if(action==='borrow'||action==='termLoan'){
-    const term=action==='termLoan',amount=ui.amount,rate=E.debtRate(game)*(term?.8:1);
-    openDialog(term?'Wachstum auf Kredit.':'Liquidität mit Verpflichtung.',`<p>${V.money(amount)} aufnehmen? Der Zins beträgt ${V.pct(rate,3)} <strong>pro Spieltag (24 echte Minuten)</strong>${term?' und bleibt für diesen Kredit fest.':'. Der Zinssatz ist variabel.'}</p><p>${term?'Zehn Tilgungsraten alle zehn Spieltage. Nicht bezahlte Raten wandern ins Kontokorrent und senken die Reputation.':'Nicht zahlbare Zinsen erhöhen die Schuld. Zu hohe Verschuldung senkt die Reputation.'}</p>`,()=>finish(E.borrow(game,amount,term)),'Kredit aufnehmen');return;
+    const term=action==='termLoan',amount=ui.amount,rate=E.debtRate(business)*(term?.8:1);
+    openDialog(term?'Wachstum auf Kredit.':'Liquidität mit Verpflichtung.',`<p>${V.money(amount)} aufnehmen? Der Zins beträgt ${V.pct(rate,3)} <strong>pro Spieltag (24 echte Minuten)</strong>${term?' und bleibt für diesen Kredit fest.':'. Der Zinssatz ist variabel.'}</p><p>${term?'Zehn Tilgungsraten alle zehn Spieltage. Nicht bezahlte Raten wandern ins Kontokorrent und senken die Reputation.':'Nicht zahlbare Zinsen erhöhen die Schuld. Zu hohe Verschuldung senkt die Reputation.'}</p>`,()=>finish(E.borrow(business,amount,term)),'Kredit aufnehmen');return;
   }
-  if(action==='repay'){finish(E.repay(game,ui.amount));return;}
-  if(action==='repayLoan'){finish(E.repay(game,ui.amount,Number(id)));return;}
-  if(action==='stock'){finish(E.stockTrade(game,id,ui.qty,side));return;}
+  if(action==='repay'){finish(E.repay(business,ui.amount));return;}
+  if(action==='repayLoan'){finish(E.repay(business,ui.amount,Number(id)));return;}
+  if(action==='stock'){finish(E.stockTrade(business,id,ui.qty,side));return;}
+  if(action==='companyBond'){const lender=ui.companyId,issuer=ui.bondIssuer||'ferrum';openDialog('Eine Firma finanzieren.',`<p>${V.esc(C.company(game,issuer).name)} erhält ${V.cash(ui.amount)}. Täglicher Zins aus der Firmenkasse, Kapital in zehn Spieltagen. Bei fünf Zahlungsstörungen wird die Forderung unter Verwertung von Sicherheiten abgewickelt.</p>`,()=>finish(C.lendToCompany(game,issuer,ui.amount,lender,'bond')),'Anleihe zeichnen');return;}
   if(action==='bond'){
     const d=BONDS[id],amount=ui.amount;
-    openDialog(d.name,`<p>${V.money(amount)} für ${V.duration(d.days*DAY)} echte Zeit binden? Zins ${V.pct(d.rate,2)} pro Spieltag vor Steuer.</p><p>${d.description}. Eine vorzeitige Rückzahlung ist nicht möglich.</p>`,()=>finish(E.investBond(game,id,amount)),'Anleihe zeichnen');return;
+    openDialog(d.name,`<p>${V.money(amount)} für ${V.duration(d.days*DAY)} echte Zeit binden? Zins ${V.pct(d.rate,2)} pro Spieltag vor Steuer.</p><p>${d.description}. Eine vorzeitige Rückzahlung ist nicht möglich.</p>`,()=>finish(E.investBond(business,id,amount)),'Anleihe zeichnen');return;
   }
   if(action==='venture'){
     const d=VENTURES[id],amount=ui.amount;
-    openDialog(d.name,`<p>${V.money(amount)} für ${V.duration(d.duration)} echte Zeit riskieren?</p><p>${d.description}.</p><p>Der Ausgang ist unabhängig von anderen Beteiligungen. Kapital ist bis zum Ergebnis gebunden. Auf einen Gewinn fallen 15 % Steuer an.</p>`,()=>finish(E.investVenture(game,id,amount)),'Risiko eingehen');return;
+    openDialog(d.name,`<p>${V.money(amount)} für ${V.duration(d.duration)} echte Zeit riskieren?</p><p>${d.description}.</p><p>Der Ausgang ist unabhängig von anderen Beteiligungen. Kapital ist bis zum Ergebnis gebunden. Auf einen Gewinn fallen 15 % Steuer an.</p>`,()=>finish(E.investVenture(business,id,amount)),'Risiko eingehen');return;
   }
-  if(action==='research'){finish(E.research(game,id));return;}
-  if(action==='accept'){finish(E.acceptContract(game,Number(id)));return;}
-  if(action==='fulfill'){finish(E.fulfillContract(game,Number(id)),oldTier);return;}
-  if(action==='abandon'){openDialog('Versprechen zurücknehmen?','<p>Der Vertrag wird aufgegeben. Deine Reputation sinkt um drei Punkte. Es gibt keine Geldstrafe.</p>',()=>finish(E.abandonContract(game,Number(id))),'Vertrag aufgeben');return;}
+  if(action==='research'){finish(E.research(business,id));return;}
+  if(action==='accept'){finish(E.acceptContract(business,Number(id)));return;}
+  if(action==='fulfill'){finish(E.fulfillContract(business,Number(id)),oldTier);return;}
+  if(action==='abandon'){openDialog('Versprechen zurücknehmen?','<p>Der Vertrag wird aufgegeben. Deine Reputation sinkt um drei Punkte. Es gibt keine Geldstrafe.</p>',()=>finish(E.abandonContract(business,Number(id))),'Vertrag aufgeben');return;}
   if(action==='liquidate'){
-    let total=0;for(const id of Object.keys(RESOURCES)){if(RESOURCES[id].tier<=game.tier&&game.inventory[id]>.001){const result=E.trade(game,id,game.inventory[id],'sell',true);if(result.ok)total+=result.total;}}
+    let total=0;for(const id of Object.keys(RESOURCES)){if(RESOURCES[id].tier<=business.tier&&business.inventory[id]>.001){const result=E.trade(business,id,business.inventory[id],'sell',true);if(result.ok)total+=result.total;}}
     finish(Eresult(`Lager verkauft: ${V.money(total)}. Vorprodukte können jetzt fehlen.`),oldTier);return;
   }
   if(action==='prestige'){
@@ -343,7 +373,7 @@ lockZoom(document);
 function refreshBuildingDetails(){
   if(!dialog.open||!detailBuilding||!game)return;
   const old=dialog.querySelector('[data-building-details]');if(!old)return;
-  const template=document.createElement('template');template.innerHTML=V.buildingDetails(game,ui,detailBuilding);morph(old,template.content.firstChild);
+  const template=document.createElement('template');template.innerHTML=V.buildingDetails(C.scopeCompany(game,ui.companyId),ui,detailBuilding);morph(old,template.content.firstChild);
 }
 
 function showChartValue(event){const target=event.target.closest('[data-chart-value]');if(target){const output=target.closest('figure')?.querySelector('.chart-readout');if(output)output.textContent=target.dataset.chartValue;}}
@@ -390,13 +420,13 @@ document.addEventListener('change',event=>{
     if(key==='amount')ui.amount=Math.round(E.clamp(Number(node.value)||1,1,1e14));
     else if(key==='fixedDays')ui.fixedDays=Number(node.value);
     else if(key==='buildFilter')ui.buildFilter=node.value;
-    else if(['optionResource','optionType','planStock','chain','bankPlanProduct','bankPlanDirection','analysisResource','analysisStock','planMode'].includes(key))ui[key]=node.value;
+    else if(['optionResource','optionType','planStock','chain','bankPlanProduct','bankPlanDirection','analysisResource','analysisStock','planMode','companyId','bondIssuer'].includes(key))ui[key]=node.value;
     else if(['optionDays','planPeriod','analysisHours'].includes(key))ui[key]=Number(node.value);
     render();
   }
-  if(node.dataset.treasury&&game){const field=node.dataset.treasury;finish(E.setTreasury(game,field,field==='bank'?node.value:Number(node.value)));}
+  if(node.dataset.treasury&&game){const field=node.dataset.treasury;finish(E.setTreasury(C.scopeCompany(game,ui.companyId),field,field==='bank'?node.value:Number(node.value)));}
   if(node.dataset.auto&&game){
-    const a=game.automation[node.dataset.auto],field=node.dataset.field;
+    const a=C.scopeCompany(game,ui.companyId).automation[node.dataset.auto],field=node.dataset.field;
     if(field==='mode')a.mode=node.value;else a[field]=Math.round(E.clamp(Number(node.value)||0,0,1e9));
     if(a.low>a.high){if(field==='low')a.high=a.low;else a.low=a.high;}
     safeSave();render();toast('Automatik gespeichert.');
@@ -406,7 +436,7 @@ document.addEventListener('change',event=>{
 document.querySelector('#import-file').addEventListener('change',async event=>{
   const file=event.target.files?.[0];event.target.value='';if(!file)return;
   try {
-    if(file.size>2500000)throw new Error('Die Datei ist zu groß.');
+    if(file.size>5000000)throw new Error('Die Datei ist zu groß.');
     const loaded=Store.decode(await file.text());
     openDialog('Spielstand importieren?',`<p><strong>${V.esc(loaded.game.name)}</strong><br>${V.cash(loaded.game.cash)} · ${TIERS[loaded.game.tier].name}</p><p>Der aktuelle automatische Stand wird ersetzt. Die verstrichene Zeit wird anschließend nachgerechnet.</p>`,async()=>{if(game&&running)safeSave();ui.tab='overview';await resume(loaded.game);},'Importieren');
   }catch(error){toast(error.message,true);}
@@ -435,6 +465,7 @@ window.addEventListener('storage',event=>{
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;});
 
 async function setupOffline() {
+  if(['localhost','127.0.0.1'].includes(location.hostname)&&new URLSearchParams(location.search).has('preview'))return;
   if(!('serviceWorker' in navigator)||!window.isSecureContext)return;
   const hadController=!!navigator.serviceWorker.controller;
   try {

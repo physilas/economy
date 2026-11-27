@@ -1,91 +1,70 @@
 # NULL — Eine Ökonomie
 
-**[Jetzt spielen → physilas.github.io/economy](https://physilas.github.io/economy/)**
+Eine minimalistische Offline-Wirtschaftssimulation für das iPhone. Schwarze Oberfläche, zehn Produktionsbetriebe, vier Wirtschaftsketten und ein gemeinsames Unternehmenssystem. Ohne Konto, Werbung, Tracking, Server oder Paketabhängigkeiten.
 
-Ein minimalistisches Wirtschaftsspiel für das iPhone. Schwarze Oberfläche, weiße Symbole, ein komplexes System im Hintergrund. Ohne Konto, Werbung, Tracking, Server oder externe Bibliotheken.
+**[Spielen](https://physilas.github.io/economy/)** · Die veröffentlichte Version entspricht dem zuletzt auf GitHub Pages bereitgestellten Stand.
 
-## Auf dem iPhone installieren
+## Vier Ketten
 
-1. Die Spieladresse in **Safari** öffnen.
-2. Auf **„Offline bereit“** warten.
-3. **Teilen → Zum Home-Bildschirm → Hinzufügen** wählen.
-4. NULL über das neue Symbol öffnen. Vorhandene Safari-Spielstände bei Bedarf über **Spielstände → Exportieren / Importieren** übertragen.
-5. Einmal im Flugmodus öffnen, um die lokale Installation zu prüfen.
+- Holzfäller → Sägewerk → Möbelmanufaktur: Holz, Bretter, Möbel.
+- Getreidehof → Bäckerei: Getreide, Brot.
+- Erzmine → Eisenhütte → Werkzeugbau: Erz, Eisen, Werkzeuge. Werkzeugbau benötigt zusätzlich Bretter.
+- Steinbruch → Ziegelei: Stein, Ziegel.
 
-Updates werden beim Start, bei Rückkehr zur App, bei wiederhergestellter Internetverbindung und zusätzlich alle 15 Minuten gesucht. Eine vollständige neue Version wird im Hintergrund zwischengespeichert. **„Update laden“** sichert den Spielstand und wechselt zur neuen Version. Alte und neue App-Dateien werden nicht gemischt.
+Beginne mit einem Holzfäller und aktiviere bei Holz „Überschüsse verkaufen“, etwa über 20 Einheiten. Personal, Energie, Transport, Lager und Betriebskapital begrenzen die Auslastung. Netzenergie kostet laufend Geld; ein separates Brennstoffprodukt ist nicht nötig. Vier Entwicklungsstufen erschließen die gesamte Produktion. Spätere Tiefe entsteht aus Eigentum, Finanzierung und Führung.
 
-## Dein Anfang
+## Die Unternehmensgruppe
 
-Baue einen Holzfäller. Im Markt kannst du bei Holz über **Automatik** „Überschüsse verkaufen“ wählen und die Verkaufsschwelle beispielsweise auf 20 stellen. Erweitere behutsam; Arbeitskräfte und Transport bleiben gemeinsame Engpässe. Liefere Aufträge für zusätzliche Prämien.
+Ab 2.000 € Vermögen können bis zu acht eigene Töchter gegründet werden. Vorlagen helfen beim Einstieg; jede Gesellschaft darf beliebige Geschäftsbereiche kombinieren. Firmen haben getrennte Kassen, Produktionsstätten, Immobilien, Finanzanlagen und Verbindlichkeiten. Über den Unternehmenswähler beziehen sich Produktion, Handel und Finanzaktionen auf die gewählte Firma.
 
-Neue Waren, Betriebe, Forschungszweige und Anlageformen bleiben verborgen, bis du sie entdeckst. **ⓘ** erklärt jedes Produkt und seine Regeln. Eine integrierte Spielanleitung hilft bei den ersten Schritten.
+Kapital und Assets können zwischen vollständig eigenen Gesellschaften übertragen werden. Buchwerte bleiben erhalten. Überschuldete, vollständig eigene Töchter können nach Abwicklung offener Firmenfinanzierungen geschlossen werden; der Verlust ist auf den Beteiligungswert und eigene Kreditforderungen begrenzt. Eigene Töchter lassen sich unter Berücksichtigung offener Verpflichtungen mit dem Stammgeschäft verschmelzen. Vollständig eigene Firmen werden bei der operativen Steuer gemeinsam betrachtet; interne Forderungen und Schulden erzeugen kein zusätzliches Eigenkapital.
 
-## Zeit und Sicherungen
+CEOs erhalten Mandat, Liquiditätsreserve, tägliches Investitionsbudget und Ausschüttungsquote. Drei Führungsstile erweitern rentable Betriebe, bauen Schulden ab oder verwalten Rücklagen. Entscheidungen erscheinen am Unternehmen. Die Führung kann jederzeit wieder selbst übernommen werden.
 
-- Eine echte Minute entspricht einer Spielstunde; 24 echte Minuten einem Spieltag.
-- Produktion und regelmäßige Geldflüsse werden alle 0,5 Sekunden berechnet. Mieten und Dividenden werden laufend statt täglich ausgezahlt. Die Uhr zeigt Spielminuten. Preise bewegen sich alle fünf Sekunden. Der normale Halbsekundentakt erhält die Stundenerträge. „100× halten“ beschleunigt die Simulation gezielt.
-- Beim Wiederöffnen werden bis zu **sieben echte Tage je Abwesenheit** nachgerechnet. Engpässe, Ereignisse, Marktaufträge, Zinsen und Fälligkeiten gelten weiter. Darüber hinausgehende Zeit wird im Rückkehrbericht ausgewiesen.
-- Autosave alle 15 Sekunden, nach Entscheidungen und beim Verlassen; drei manuelle Speicherplätze, JSON-Export und Import.
-- Jeder Speicherplatz besitzt zusätzlich seine letzte gültige Sicherung. Prüfsummen erkennen beschädigte Dateien; eingelesene Daten werden validiert.
-- Pro Browser-Speicher ist nur eine Sitzung aktiv. Die andere Sitzung pausiert, damit Fortschritt nicht doppelt berechnet oder überschrieben wird.
+## Investieren und übernehmen
 
-Browserdaten sind lokal: Wer sie löscht, verliert auch lokale Spielstände. **Eine exportierte Datei ist die unabhängige Sicherung.** Safari und die Home-Bildschirm-App können getrennte Speicher verwenden.
+Fünf Konkurrenzfirmen besitzen tatsächliche Anlagen, Vorräte, Immobilien und Schulden. Drei sind zunächst börsennotiert, zwei privat. Sie produzieren, handeln und finanzieren sich nach denselben operativen Regeln. Ihre Mengen beeinflussen den gemeinsamen Warenmarkt. Öffentliche Geschäftsberichte verbinden Aktienbewertungen mit tatsächlicher Ertragskraft und Substanz; zusätzliche Kursschwankungen sind begrenzt.
 
-## Bedienung und Analyse
+Aktien haben eine endliche Stückzahl. Private Eigentümer verhandeln Preis und Anteil, machen Gegenangebote und akzeptieren gegebenenfalls Verkäuferfinanzierung. Die Unternehmensprüfung erschließt bei privaten Firmen konkrete Bilanzdaten. Angenommene Angebote bleiben vor dem Abschluss überprüfbar. Mehr als 50 % der Stimmrechte erlauben die Führung. Freie Entnahmen und Assetüberträge erfordern auch wirtschaftlich vollständiges Eigentum; indirekte Stimmen allein reichen nicht.
 
-- Kompakte Betriebs- und Infrastrukturzeilen: Name, aktueller Baupreis für die gewählte Schrittweite, Anzahl, − und +; Details, Ausbau, Pausen und Bauvorschau über ⓘ.
-- **100× halten** in der Kopfleiste beschleunigt alle Simulationssysteme nur während des Haltens. Loslassen, Verlassen des Knopfs, Dialoge, App-Wechsel und Neuladen beenden den Schnelllauf. Offline läuft die normale Zeit weiter.
-- Mengen und Investitionssummen bleiben beim Scrollen oben sichtbar. ×10 und ÷10 ändern die Größenordnung. Gedrückthalten wiederholt Aktionen; Loslassen, Scrollen und App-Wechsel stoppen die Wiederholung.
-- Alle kaufen / verkaufen je Ware, Aktie und Immobilie; alles einzahlen / abheben je Bankkonto. Maximal bauen und komplett abbauen im Info-Dialog.
-- Hauptbereiche: Übersicht, Produktion, Markt, Finanzen, Analyse und Mehr. Forschung, Holdingprogramme, Aufträge und Chronik bleiben unter Mehr erreichbar.
-- Produktion → Planung zeigt aktuelle Produktion, Verbrauch und Saldo je Ware sowie Sollmengen bei voller Auslastung. Produktion → Ketten zeigt vollständige Lieferketten mit kleinsten ganzzahligen Grundverhältnissen und einer Live-Mengenplanung.
-- Analyse: Vermögen, Liquidität, Waren- und Depotwert, Schulden, Umsatz, laufende Kosten, Zinsen, Dividenden, Mieten, Steuern, Produktions- und Forschungserträge, Kapazitätsversorgung, Warenbilanzen, Kurse und Betriebsdetails. Historische neue Kennzahlen beginnen ab dem Update; vorhandene Verläufe bleiben erhalten.
-- Spielstandsformat und Speicherschlüssel bleiben unverändert. Anzahl, Aktivierung, Ausbau, Buchwerte, Forschung, Freischaltungen, Finanzpositionen und Holdingfortschritt alter Stände werden übernommen.
+Einzelunternehmen, GmbH und AG unterscheiden sich durch Organisationskosten und Finanzierungsmöglichkeiten. AGs können an die Börse gehen und neue Aktien ausgeben. Emissionen sind auf 30 % des Werts je fünf Spieltage begrenzt und verwässern bestehende Eigentümer. Die Holding behält dabei die Gründermehrheit. Eigene börsennotierte Tochteranteile lassen sich verkaufen und zurückkaufen.
 
-## Wirtschaft und Entscheidungen
+Dividenden kommen einmal je Spieltag aus positivem Ergebnis und verfügbarer Firmenkasse. Alle Eigentümer erhalten ihren Anteil; Kasse und Aktienwert werden entsprechend reduziert. Holdingdividenden fließen nach Steuer ins Privatvermögen und können gegen neue Holdinganteile reinvestiert werden.
 
-Produktionsketten benötigen Vorprodukte, Personal, Energie, Transport, Lagerplatz und Betriebskapital. Exakte Grundrezepte bilden ganzzahlige Betriebsverhältnisse. Produktionsbetriebe haben feste Grundbaupreise; Infrastruktur wächst weiterhin im Preis. Jeder Ausbau verdoppelt Produktion und Vorproduktverbrauch, bei deutlich steigenden Ausbaukosten. Knappheit und Umweltkosten begrenzen das Wachstum. Eine Mengenplanung macht Zulieferdefizite sichtbar. Ein optionaler Margenwächter pausiert offensichtliche Verlustketten und startet sie bei erholten Preisen wieder. Strategien, Ausbaustufen und Forschung verändern die Unternehmensleistung.
+## Geld, Immobilien und Verträge
 
-**Bau prüfen** öffnet bei jedem bekannten Betrieb eine Vorschau für 1 bis 10.000 zusätzliche Einheiten. Sie zeigt Baukosten, verbleibende Liquidität, Vorproduktbedarf, technische Auslastung, zusätzliche Infrastruktur und einen Marktvergleich der laufenden Kosten und Erlöse. Vorhandene Zulieferer werden berücksichtigt. Die Vorschau verändert keinen Spielstand und kennt keine zukünftigen Kurse; Rechenannahmen stehen hinter dem Info-Symbol im Dialog. Noch nicht entdeckte Inhalte bleiben verborgen.
+Banken, Festgeld und Anleihen bieten höhere, auf Spieltage bezogene Zinsen. Reservekonto: 0,18 % vor Steuer; Tagesgeld abhängig von der Konjunktur; Staatsanleihen: 0,32 %. Sichere Kontozinsen bleiben unter dem Kreditzins.
 
-Der Markt reagiert auf eigene Handelsmengen, externe Nachfrage, Konjunktur und Ereignisse. Aufträge werden mit einem integrierten marginalen Preiseffekt abgerechnet; Aufteilen eines Auftrags erzeugt keinen kostenlosen Preisvorteil. Automatik und Limitaufträge handeln nach den gesetzten Regeln.
+Holding und Finanztochter können konkrete Firmen finanzieren. Besicherte Kredite zahlen täglich Zins und nach verfügbarer Liquidität Tilgung. Unternehmensanleihen zahlen aus der tatsächlichen Emittentenkasse und werden nach zehn Spieltagen fällig. Nach fünf Zahlungsstörungen ist eine verlustbehaftete Abwicklung möglich. Forderung und Verbindlichkeit bleiben im richtigen Unternehmen bilanziert.
 
-Aktien sind mit Unternehmensfundamentaldaten verknüpft. Verkaufspreise, Inputkosten und Konjunktur bestimmen Umsatz und Marge. Alle fünf Spieltage erscheinen Geschäftsberichte. KGV, Gewinn je Anteil, Dividenden und Modell-Ertragswert erlauben begründete Vergleiche. Kurse schwanken zusätzlich; der Modellwert garantiert keinen Gewinn.
+Lieferverträge tauschen tatsächliche Waren und Geld zwischen kontrollierten Firmen. Mietverträge ersetzen die Außenvermietung: Wohnhäuser geben dem Mieter Personal, Gewerbeparks Lager und Transport, Logistikimmobilien größere Kapazitäten; Pachtland verbessert Getreideproduktion. Wartung bleibt zahlbar. Interne Vertragspreise sind auf einen Bereich um den Marktpreis begrenzt.
 
-<details>
-<summary>Weitere Systeme — mögliche Entdeckungen</summary>
+Put- und Call-Absicherungen rechnen mit einem geglätteten handelbaren Warenpreis ab. Auch eigene Verkäufe beeinflussen ihn mit Verzögerung. Produktion ohne Absatz senkt den Preis nicht. Optionen haben eine Prämie, ein festes Ende und einen auf die Prämie begrenzten Verlust. Ein auslaufender Put wird zusammen mit den tatsächlich erzielten Verkaufserlösen beurteilt.
 
-- 36 Ressourcen, 36 Produktionsbetriebe, zwölf Entwicklungsepochen und 13 Infrastrukturtypen.
-- Zwölf Forschungszweige mit mehreren Stufen; vier Unternehmensstrategien, Umweltsystem und Kapazitätsplanung.
-- Reservekonto, Tagesgeld, drei Festgeldlaufzeiten, Spar- und Auszahlungspläne für Bankkonten, Festgeld-Sparpläne, Kontokorrent und amortisierende Investitionskredite.
-- Fünf Einzelaktien und ein Marktindex, Dividenden-Wiederanlage und regelmäßige Sparpläne.
-- Drei Anleiheklassen, vier riskante Beteiligungsarten und vier vermietete Immobilienarten.
-- Call- und Put-Absicherungen mit modellierten Prämien, fester Laufzeit und auf die Prämie begrenztem Verlust. Abrechnung zum Außenmarkt ohne direkt manipulierbaren eigenen Knappheitseffekt.
-- Liquiditätsmanager, Lieferverträge, Reputation, Konjunkturzyklen, Ereignisse und Meilensteine.
-- Neun aufeinanderfolgende Holdingprogramme mit jeweils drei wählbaren Schwerpunkten: Produktion, Finanzen oder Logistik. Einmalige Material- und Kapitalinvestitionen, feste echte Laufzeiten, dauerhafte Boni. Laufende und abgeschlossene Programme überleben spätere Neugründungen und Sanierungen.
-- Dauerhafte Vermächtnispunkte für spätere Neugründungen, mit eigener Übersicht über aktive Boni, verfügbare Belohnung und nächste Punkteschwellen.
-- Notaufträge und bei Überschuldung eine Sanierung als Ausweg. Eine Sanierung gibt Vermögenswerte ab, erhält aber Wissen und Entdeckungen.
+Drei Holdingprogramme dauern zehn, dreißig und sechzig echte Minuten und schaffen bleibende Spezialisierungen. Forschung, Aufträge, Kapazitätsplanung, Analyse und optionaler Margenwächter bleiben verfügbar.
 
-</details>
+## Zeit, Offlinebetrieb und Sicherungen
 
-Finanzprodukte und Rechenregeln gehören ausschließlich zur Spielwelt. Die Info-Dialoge zeigen Laufzeiten, Gebühren, Steuerregeln und Risiken, bevor eine Entscheidung getroffen wird.
+Eine echte Minute entspricht einer Spielstunde; 24 echte Minuten einem Spieltag. Das Stammgeschäft rechnet alle 0,5 Sekunden, weitere Firmen an festen Spielstunden-Grenzen mit denselben Rezepten und Geldregeln. Märkte bewegen sich alle fünf Sekunden. „100× halten“ beschleunigt alle Systeme. Bis zu sieben echte Tage Abwesenheit werden nachgerechnet; CEOs, Vertragsfristen, Zinsen, Dividenden und Kredite laufen weiter.
+
+Autosave alle 15 Sekunden, drei manuelle Speicherplätze, jeweils eine Sicherungskopie und JSON-Export/-Import. Bestehende Speicherstände werden übernommen: entfallene Anlagen zum Buchwert, Waren zum bisherigen Marktwert, entfernte Forschungszweige zu ihren Investitionskosten und entfernte Absicherungen zu ihrer Prämie. Frühere zusätzliche Holdingprogramme behalten ihre Boni. Synthetische Altaktien werden mit gegebenenfalls einmaligem Wertausgleich in echte Firmenanteile überführt. Frühere Indexpositionen werden ausgezahlt; Sparpläne auf nicht mehr öffentlich gehandelte Werte enden. Die Umstellung ist beim erneuten Laden nicht wiederholbar.
+
+Auf dem iPhone in Safari öffnen, auf **„Offline bereit“** warten und über **Teilen → Zum Home-Bildschirm** installieren. Browserdaten sind lokal; eine exportierte Datei ist eine unabhängige Sicherung. Updates sichern den Stand und wechseln auf einen vollständigen, versionierten Offline-Cache.
 
 ## Entwicklung und Prüfung
 
-Die App läuft direkt aus `index.html`; ein Build ist nicht nötig. GitHub Pages veröffentlicht `main` aus `/`. Alle URLs sind relativ und unterstützen den Projektpfad `/economy/`.
+Die App läuft direkt aus `index.html`; ein Build ist nicht nötig. GitHub Pages veröffentlicht `main` aus `/`. Relative URLs unterstützen den Projektpfad `/economy/`.
 
 ```sh
 npm test
 npm run check
 npm run test:long
 npm run test:month
-python3 -m http.server 4187 --bind 127.0.0.1
+npm run dev
 ```
 
-Node.js 22 oder neuer wird für die Tests benötigt, Python nur für eine lokale HTTP-Vorschau. Die App selbst hat keine Paketabhängigkeiten. Unter `http://127.0.0.1:4173/tests/layout.html` prüft „Layout prüfen“ im echten Browser feste Positionen bei wechselnden Beständen und Guthaben, Knopfidentität, Fokus, Scrollposition und zweizeilige Finanzreiter. Gedrückthalten von + / − misst zusätzlich Layoutbewegungen während echter Bauschritte. Der Service Worker benötigt HTTPS oder localhost.
+Node.js 22 oder neuer wird für Tests benötigt, Python für die lokale Vorschau. Auf einem frischen lokalen Port unter `/?preview=1` kann die Oberfläche ohne Service-Worker-Registrierung geprüft werden. Bestehende Browser-Spielstände für Prüfungen auf einer separaten Origin belassen.
 
-Die Tests prüfen unter anderem deterministische Live-/Offline-Berechnung, Stundenerträge beim Halbsekundentakt, Konstruktion, Preiswirkung, unmögliche Rückverkaufsgewinne, Kredite, Zinsen, Steuern, Fälligkeiten, Optionsmathematik, Wiederanlage, Immobilien, Berichte, versteckte Freischaltungen, Schema-Validierung, beschädigte Sicherungen und eine simulierte Offline-Woche. Zusätzliche Regressionstests prüfen identische Ergebnisse des Margenwächters bei unterschiedlichen Rechenschritten, Offlineboni bei kurzen Abwesenheiten, sehr große Vermögen beim Speichern/Laden, korrekte Bedienzustände nach Spielstandwechseln sowie einen vollständigen, gegen fehlgeschlagene Updates abgesicherten Offline-Cache. GitHub Actions führt die Prüfungen bei jedem Push aus.
+Die Tests prüfen Produktion und Planung, Live-/Offline-Gleichheit, Finanzmathematik, echte Aktienmengen, Verhandlung und Übernahme, Verwässerung, Minderheitenrechte, interne Wertüberträge, Forderungen und Ausfälle, Dividenden, Mandate, Mietnutzung, Migration und vollständigen Offline-Cache. Der Langzeittest verwendet reguläres Startkapital und öffentliche Spielaktionen; der Monatstest prüft die Wirtschaft über 45 echte simulierte Tage.
 
-Der zusätzliche Langzeittest beginnt mit dem normalen Startkonto und verwendet ausschließlich reguläre Spielaktionen. Ein einfacher Unternehmensmanager baut, schafft Kapazitäten, richtet Handel ein und forscht. Innerhalb von bis zu 14 simulierten echten Tagen müssen die ursprünglichen sieben Epochen und die erste Neugründung erreichbar sein. Es werden weder Geld noch Freischaltungen injiziert. Ein weiterer Test spielt 45 echte Tage nach: neue Epochen und sämtliche Holdingprogramme müssen mit regulären Aktionen erreichbar bleiben. Dabei werden auch neue Infrastruktur, Materialreserven, Schwerpunktwahl und Forschungsbudgets genutzt.
-
-Speicherformat-Version und App-Version sind getrennt. Ergänzte Spielfelder erhalten beim Laden alter Stände sichere Standardwerte. Für App-Dateiänderungen die Release-Version und den Service-Worker-Cache-Namen gemeinsam erhöhen.
+Speicherformat-Version und App-Version sind getrennt. Neue Felder werden validiert und erhalten sichere Standardwerte. Bei Änderungen an App-Dateien Release-Version und Service-Worker-Cache-Namen gemeinsam erhöhen.

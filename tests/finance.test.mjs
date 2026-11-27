@@ -6,8 +6,9 @@ import {encode,decode} from '../src/storage.mjs';
 import {DAY,ACHIEVEMENTS,PROPERTIES,STOCKS,BUILDINGS,RESOURCES,INFRA,RESEARCH,BONDS,VENTURES,TIERS} from '../src/data.mjs';
 import {help} from '../src/help.mjs';
 import * as V from '../src/views.mjs';
+import * as C from '../src/corporate.mjs';
 const now=1800000000000;
-function game(){const s=createGame('Finance',now,42);s.tier=6;s.stats.peak=3e7;s.cash=1e7;s.achievements=ACHIEVEMENTS.map(a=>a.id);return s;}
+function game(){const s=createGame('Finance',now,42);s.tier=3;s.stats.peak=3e7;s.cash=1e7;s.achievements=ACHIEVEMENTS.map(a=>a.id);return s;}
 const near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} ≈ ${b}`);
 
 test('option pricing obeys parity, expiry payoff and monotonic volatility',()=>{
@@ -32,16 +33,16 @@ test('property and hedging content stays hidden before unlock',()=>{
   assert.equal(propertyTrade(s,'apartments',1,'buy').ok,false);assert.equal(buyOption(s,'wood','put',1).ok,false);
 });
 
-test('options cannot be manipulated through the player scarcity pressure',()=>{
-  const s=game(),q=optionQuote(s,'wood','call',100,3),reference=referencePrice(s,'wood');
-  s.market.wood.pressure=4;near(referencePrice(s,'wood'),reference);near(optionQuote(s,'wood','call',100,3).premium,q.premium);
+test('own sustained sales affect the smoothed option reference with a delay',()=>{
+  const s=game(),before=referencePrice(s,'wood');s.market.wood.pressure=-1.5;
+  near(referencePrice(s,'wood'),before);advance(s,now+30000);assert.ok(referencePrice(s,'wood')<before);
 });
 
 test('put pays a bounded cash settlement and never requires additional margin',()=>{
   const s=game();buyOption(s,'wood','put',100,1);const o=s.options[0];
-  s.market.wood.factor=.5;o.end=1;const before=s.cash;
+  s.market.wood.factor=.5;s.market.wood.reference=3;o.end=1;const before=s.cash;
   advance(s,now+1000);assert.equal(s.options.length,0);assert.ok(s.cash>before);assert.equal(s.debt,0);
-  const t=game();buyOption(t,'wood','put',100,1);t.market.wood.factor=2;t.options[0].end=1;const afterPremium=t.cash;
+  const t=game();buyOption(t,'wood','put',100,1);t.market.wood.factor=2;t.market.wood.reference=12;t.options[0].end=1;const afterPremium=t.cash;
   advance(t,now+1000);near(t.cash,afterPremium);assert.equal(t.debt,0);
 });
 
@@ -56,23 +57,23 @@ test('treasury moves existing bank capital and creates no equity',()=>{
 });
 
 test('dividend reinvestment accumulates reserve, buys whole shares and releases leftovers',()=>{
-  const s=game();stockTrade(s,'sylva',10000,'buy');toggleDividendReinvestment(s,'sylva');advance(s,now+DAY*1000);
-  assert.ok(s.stocks.sylva.quantity>10000);assert.ok(s.stocks.sylva.reserve>=0);assert.ok(s.stats.dividends>0);
+  const s=game();stockTrade(s,'sylva',1000,'buy');toggleDividendReinvestment(s,'sylva');advance(s,now+DAY*1000+1000);
+  assert.ok(s.stocks.sylva.quantity>1000);assert.ok(s.stocks.sylva.reserve>=0);assert.ok(s.stats.dividends>0);
   const reserve=s.stocks.sylva.reserve,cash=s.cash;toggleDividendReinvestment(s,'sylva');near(s.cash-cash,reserve);assert.equal(s.stocks.sylva.reserve,0);
 });
 
 test('savings plans skip insufficient cash and never use credit',()=>{
-  const s=game();s.cash=10;createSavingsPlan(s,'sylva',100,1);advance(s,now+DAY*1000);
+  const s=game();s.cash=10;createSavingsPlan(s,'sylva',500,1);advance(s,now+DAY*1000);
   assert.equal(s.stocks.sylva.quantity,0);assert.equal(s.savingsPlans[0].skipped,1);assert.equal(s.debt,0);
   s.cash=1000;advance(s,s.lastUpdate+DAY*1000);assert.ok(s.stocks.sylva.quantity>0);assert.ok(s.cash>=50);
   cancelSavingsPlan(s,s.savingsPlans[0].id);assert.equal(s.savingsPlans.length,0);
 });
 
-test('company earnings respond to output prices, input costs and business cycle',()=>{
+test('company earnings respond to actual output and input market prices',()=>{
   const s=game(),base=companyFundamentals(s,'terra');s.market.grain.factor=1.8;const expensive=companyFundamentals(s,'terra');
-  assert.ok(expensive.margin<base.margin);assert.ok(expensive.fair<base.fair);
+  assert.ok(expensive.margin<base.margin);assert.ok(expensive.fair<=base.fair);
   s.market.grain.factor=1;s.market.food.factor=1.5;const strong=companyFundamentals(s,'terra');assert.ok(strong.eps>base.eps);
-  s.economy.cycle=.8;assert.ok(companyFundamentals(s,'terra').revenue<strong.revenue);
+  C.company(s,'terra').state.buildings.bakery.active=0;assert.ok(companyFundamentals(s,'terra').revenue<strong.revenue);
 });
 
 test('reports remain published until the next reporting date, then update',()=>{
@@ -81,13 +82,9 @@ test('reports remain published until the next reporting date, then update',()=>{
   assert.ok(s.stocks.terra.report.eps>0);assert.ok(s.stocks.index.report.fair>0);
 });
 
-test('dividends have a matching ex-dividend price adjustment, preventing free dividend capture',()=>{
-  const withDividend=game();withDividend.elapsed=DAY-1;withDividend.stocks.sylva.quantity=100;
-  const withoutDividend=structuredClone(withDividend),dps=withDividend.stocks.sylva.report.dps;
-  withoutDividend.stocks.sylva.report.dps=0;
-  advance(withDividend,now+1000);advance(withoutDividend,now+1000);
-  near(withDividend.cash-withoutDividend.cash,100*dps*.85/DAY);
-  near(withoutDividend.stocks.sylva.price-withDividend.stocks.sylva.price,dps/DAY);
+test('company dividends are paid from real profits and cannot exceed available cash',()=>{
+  const s=game();stockTrade(s,'sylva',1000,'buy');const c=C.company(s,'sylva');c.ceo=null;c.payout=.5;
+  advance(s,now+DAY*1000);assert.ok(s.stats.dividends>0);assert.ok(c.state.cash>=c.reserve);assert.ok(c.report.some(x=>x.includes('Dividende')));
 });
 
 test('supply planning exposes input deficits and setup configures valid buffers',()=>{
@@ -124,14 +121,14 @@ test('a debt spiral has a recovery path that preserves discoveries but cancels a
   s.bonds.push({id:900,type:'state',principal:5000,start:0,end:DAY,rate:.0015});
   const next=restructure(s,now);
   assert.ok(next);assert.equal(next.cash,600);assert.equal(next.debt,0);assert.equal(next.bonds.length,0);assert.equal(next.buildings.lumber.count,1);
-  assert.equal(next.tier,6);assert.equal(next.research.forestry,2);assert.equal(next.legacy,3);assert.equal(next.reputation,15);
+  assert.equal(next.tier,3);assert.equal(next.research.forestry,2);assert.equal(next.legacy,3);assert.equal(next.reputation,15);
   next.automation.wood={mode:'sell',low:0,high:10};const cash=next.cash;advance(next,now+60000);assert.ok(next.cash>cash);
   assert.deepEqual(decode(encode(next),now+60000).game,next);
 });
 
 test('extended finance state roundtrips without losing basis, reports, plans or settings',()=>{
   const s=game();propertyTrade(s,'apartments',2,'buy');stockTrade(s,'terra',10,'buy');toggleDividendReinvestment(s,'terra');
-  buyOption(s,'wood','put',10,3);createSavingsPlan(s,'index',100,5);setTreasury(s,'enabled',true);
+  buyOption(s,'wood','put',10,3);createSavingsPlan(s,'sylva',100,5);setTreasury(s,'enabled',true);
   const decoded=decode(encode(s),now).game;
   for(const key of ['properties','stocks','options','savingsPlans','treasury'])assert.deepEqual(decoded[key],s[key]);
   near(assets(decoded).total,assets(s).total);

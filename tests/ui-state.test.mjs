@@ -29,7 +29,7 @@ test('a loaded tier-one company cannot retain previously unlocked financial subt
 });
 
 test('prestige returns inaccessible tabs and products to starting selections',()=>{
-  const old=createGame('Holding',0,42);old.tier=11;old.stats.peak=1e8;
+  const old=createGame('Holding',0,42);old.tier=3;old.stats.peak=1e8;
   const fresh=prestige(old,0),ui=advancedUI();normalizeUI(ui,fresh);
   assert.equal(ui.tab,'overview');assert.equal(ui.productionTab,'business');assert.equal(ui.financeTab,'bank');assert.equal(ui.optionResource,'wood');assert.equal(ui.fixedDays,20);
   const production=V.production(fresh,ui),finance=V.finance(fresh,ui);
@@ -38,7 +38,7 @@ test('prestige returns inaccessible tabs and products to starting selections',()
 });
 
 test('valid unlocked preferences survive normalization without changing the company',()=>{
-  const s=createGame('Advanced',0,42);s.tier=11;s.campaign.unlocked=true;
+  const s=createGame('Advanced',0,42);s.tier=3;s.campaign.unlocked=true;
   const ui=normalizeUI(advancedUI(),s),before=JSON.stringify(s),selection={...ui};
   assert.equal(normalizeUI(ui,s),ui);assert.deepEqual(ui,selection);assert.equal(JSON.stringify(s),before);
 });
@@ -50,12 +50,12 @@ test('production rendering also rejects stale locked subtabs after a restart',()
 
 
 test('a programme with only missing cash explains its disabled choices visibly',()=>{
-  const s=createGame('Cash shortage',0,42),p=PROGRAMMES[0];s.tier=p.tier;s.campaign.unlocked=true;s.campaign.peak=p.wealth;s.cash=p.cash-4000;s.points=p.points;
+  const s=createGame('Cash shortage',0,42),p=PROGRAMMES[0];s.tier=p.tier;s.campaign.unlocked=true;s.campaign.peak=p.wealth;s.cash=p.cash-400;s.points=p.points;
   for(const[id,q]of Object.entries(p.materials))s.inventory[id]=q;
   const html=V.programmes(s);
   assert.ok(html.includes('Kapital verfügbar / benötigt'));
-  assert.ok(html.includes('21.000 € / 25.000 €'));
-  assert.ok(html.includes('<p class="notice mt16" role="status">Zum Start fehlen: 4.000 € Betriebskapital.</p>'));
+  assert.ok(html.includes('1.100 € / 1.500 €'));
+  assert.ok(html.includes('<p class="notice mt16" role="status">Zum Start fehlen: 400 € Betriebskapital.</p>'));
   assert.equal((html.match(/data-action="startProgramme"[^>]* disabled/g)||[]).length,3);
   s.cash=p.cash;const ready=V.programmes(s);assert.ok(!ready.includes('Zum Start fehlen:'));assert.equal((ready.match(/data-action="startProgramme"[^>]* disabled/g)||[]).length,0);
 });

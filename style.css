@@ -743,3 +743,12 @@ button,input,select,.number,.clock { font-variant-numeric:tabular-nums; }
 .asset-label h3 { line-height:18px; }
 .asset-price { display:block; min-width:0; height:12px; line-height:12px; font-size:10px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 @media (max-width:560px) { .asset-label h3 { line-height:16px; } .asset-price { font-size:9px; } }
+
+/* Corporate ownership uses the same compact visual language as operations. */
+.company-switch{display:grid;grid-template-columns:auto minmax(140px,1fr) auto;align-items:center;gap:8px 12px;padding:10px 20px;border-bottom:1px solid var(--line);max-width:1280px;margin:auto}
+.company-switch label{margin:0;font-size:14px}.company-switch select{width:100%;min-width:0}.company-switch small{grid-column:2/-1;color:var(--muted);font-size:12px}
+.summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}.summary-grid small{display:block;color:var(--muted);font-size:13px}.summary-grid .primary-value{display:block;font-size:clamp(19px,3vw,28px);margin-top:8px}
+.company-card h3{font-size:17px}.company-card p{font-size:14px;line-height:1.5}.company-card .detail-grid p{font-size:13px}.company-card .detail-grid strong{font-size:16px}.company-assets{color:var(--muted);padding-top:8px;border-top:1px solid var(--line)}
+.company-badge{font-size:12px;border:1px solid var(--line);padding:5px 8px;border-radius:6px}.company-report{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.company-report summary{font-size:14px;cursor:pointer}.company-report p{color:var(--muted)}
+#dialog input,#dialog select{max-width:100%;width:100%}#dialog label{font-size:14px}#dialog p{line-height:1.6}
+@media(max-width:620px){.company-switch{grid-template-columns:1fr auto;padding:8px 14px}.company-switch label{grid-column:1/-1}.company-switch small{grid-column:1/-1}.summary-grid{gap:6px}.summary-grid .panel{padding:10px}.summary-grid small{font-size:12px}.summary-grid .primary-value{font-size:18px}.company-card .detail-grid{gap:12px}.company-card .detail-grid strong{font-size:15px}}

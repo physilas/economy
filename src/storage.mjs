@@ -15,7 +15,7 @@ export function encode(game, now = Date.now()) {
 }
 
 export function decode(text, now = Date.now()) {
-  if (typeof text !== 'string' || text.length > 2500000) throw new Error('Spielstand ist zu groß oder ungültig.');
+  if (typeof text !== 'string' || text.length > 5000000) throw new Error('Spielstand ist zu groß oder ungültig.');
   let envelope;
   try { envelope = JSON.parse(text); } catch { throw new Error('Die Datei ist kein gültiger JSON-Spielstand.'); }
   if (envelope?.format !== 'NULL_SAVE' || envelope.version !== 1 || typeof envelope.data !== 'string') throw new Error('Diese Datei ist kein NULL-Spielstand.');

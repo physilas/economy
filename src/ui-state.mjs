@@ -1,3 +1,4 @@
+import {controlledCompanies,company} from './corporate.mjs';
 import {RESOURCES,STOCKS,BUILDINGS} from './data.mjs';
 
 // A loaded company can have fewer discoveries than the previous company.
@@ -5,7 +6,9 @@ import {RESOURCES,STOCKS,BUILDINGS} from './data.mjs';
 export function normalizeUI(ui,s){
   const tier=s?.tier||0;
   const choose=(key,values,fallback)=>{if(!values.includes(ui[key]))ui[key]=fallback;};
-  choose('tab',['overview','production','market','contracts','journal','statistics','analysis','legacy','more','saves','guide',...(tier>=1?['finance','research']:[]),...(s?.campaign?.unlocked?['programmes']:[])],'overview');
+  choose('tab',['companies','overview','production','market','contracts','journal','statistics','analysis','legacy','more','saves','guide',...(tier>=1?['finance','research']:[]),...(s?.campaign?.unlocked?['programmes']:[])],'overview');
+  choose('companyId',['holding',...controlledCompanies(s?._holding||s||{}).map(c=>c.id)],'holding');
+  choose('companyTab',['owned','market','contracts'],'owned');
   choose('productionTab',['business','infra','chains','planner',...(tier>=1?['strategy']:[])],'business');
   choose('financeTab',['bank','stocks','bonds','ventures',...(tier>=2?['properties']:[]),...(tier>=3?['hedges']:[])],'bank');
   choose('buildFilter',['all','owned','raw'],'all');
@@ -15,7 +18,8 @@ export function normalizeUI(ui,s){
   choose('optionType',['put','call'],'put');
   choose('optionDays',[1,3,7],3);
   choose('fixedDays',tier>=2?[10,20,60]:[10,20],20);
-  choose('planStock',Object.keys(STOCKS),'sylva');
+  choose('bondIssuer',['sylva','terra','ferrum','forma','nova'],'ferrum');
+  choose('planStock',Object.keys(STOCKS).filter(id=>id!=='index'&&(!s?.group&&!s?._holding||company(s?._holding||s,id)?.listed)),'sylva');
   choose('planPeriod',[1,5,10],1);
   choose('qty',[1,10,100,1000,10000],1);
   choose('analysisTab',['company','production','markets','income','balance'],'company');

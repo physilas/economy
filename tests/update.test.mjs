@@ -8,15 +8,15 @@ import {advanceOfflineBatched} from '../src/offline.mjs';
 import {encode,decode} from '../src/storage.mjs';
 import {normalizeUI} from '../src/ui-state.mjs';
 const near=(a,b,tolerance=1e-7)=>assert.ok(Math.abs(a-b)<tolerance,`${a} ≈ ${b}`);
-const game=()=>{const s=E.createGame('Update',0,42);s.tier=11;s.cash=1e8;s.achievements=ACHIEVEMENTS.map(a=>a.id);return s;};
+const game=()=>{const s=E.createGame('Update',0,42);s.tier=3;s.cash=1e8;s.achievements=ACHIEVEMENTS.map(a=>a.id);return s;};
 
-test('half-second steps book wages, production, bank interest, rent, dividends and debt interest immediately',()=>{
+test('half-second steps book operating flows while company dividends follow their reporting day',()=>{
   const s=game();E.build(s,'lumber');s.banks.reserve=10000;s.debt=1000;s.stocks.sylva.quantity=1000;s.properties.farmland.count=2;
   const before=structuredClone(s);const result=E.advance(s,500);
   assert.equal(STEP,.5);assert.equal(result.steps,1);assert.equal(result.seconds,.5);
   near(s.inventory.wood-before.inventory.wood,8/120);near(s.hourLedger.costs-before.hourLedger.costs,9/120+1000*(Math.pow(1+E.debtRate(before),.5/DAY)-1));
-  assert.ok(s.stats.interest>0);assert.ok(s.stats.rent>0);assert.ok(s.stats.dividends>0);assert.ok(s.banks.reserve>before.banks.reserve);
-  assert.ok(s.stocks.sylva.price<before.stocks.sylva.price);
+  assert.ok(s.stats.interest>0);assert.ok(s.stats.rent>0);assert.equal(s.stats.dividends,0);assert.ok(s.banks.reserve>before.banks.reserve);
+  near(s.stocks.sylva.price,before.stocks.sylva.price);
   near(s.stats.rent,2*(430*.9-30)*.85*.5/DAY);
 });
 

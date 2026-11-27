@@ -43,7 +43,7 @@ test('planning warns when new facilities reduce existing productivity',()=>{
 });
 
 test('existing and additional shortages are clearly distinguished',()=>{
-  const s=game();build(s,'weaver',5);
+  const s=game();build(s,'toolmaker',5);
   const p=previewBuilding(s,'lumber');
   assert.equal(p.deficits.find(d=>d.metric==='energy').additionalShortage,0);
   assert.equal(p.deficits.find(d=>d.metric==='staff').additionalShortage,2);
@@ -57,9 +57,9 @@ test('small capacity changes are not described as a decrease between identical r
 
 test('energy alternatives and transport units respect existing research and event bonuses',()=>{
   const s=game();s.research.energy=2;s.research.logistics=1;
-  const p=previewBuilding(s,'aerospace',1),energy=p.deficits.find(d=>d.metric==='energy');
-  assert.equal(energy.options.find(o=>o.id==='power').quantity,3);
-  assert.equal(energy.options.find(o=>o.id==='solar').quantity,3);
+  const p=previewBuilding(s,'toolmaker',10),energy=p.deficits.find(d=>d.metric==='energy');
+  assert.equal(energy.options.find(o=>o.id==='power').quantity,1);
+  assert.equal(energy.options.find(o=>o.id==='solar').quantity,1);
   assert.equal(p.deficits.find(d=>d.metric==='freight').options[0].quantity,1);
   for(const deficit of p.deficits)for(const option of deficit.options)near(option.cost,buildQuote(s,option.id,option.quantity,true).total);
 });
@@ -67,16 +67,16 @@ test('energy alternatives and transport units respect existing research and even
 test('recommended capacity additions actually remove the projected structural shortages',()=>{
   const s=game();s.research.automation=3;s.research.logistics=2;s.research.energy=2;
   s.event={name:'Transport scenario',freight:.75,solar:1.3};
-  const plan=previewBuilding(s,'aerospace');
+  const plan=previewBuilding(s,'toolmaker',10);
   for(const deficit of plan.deficits){const option=deficit.options.find(o=>o.id==='solar')||deficit.options[0];assert.ok(build(s,option.id,option.quantity,true).ok);}
-  assert.ok(build(s,'aerospace').ok);const c=capacity(s);
+  assert.ok(build(s,'toolmaker',10).ok);const c=capacity(s);
   assert.ok(c.workers>=c.staff);assert.ok(c.potentialEnergy>=c.energy);assert.ok(c.transport>=c.freight);
 });
 
 test('construction materials are removed from hypothetical reserves without mutating real inventory',()=>{
   const s=game();s.inventory.wood=30;s.inventory.stone=25;
-  const p=previewBuilding(s,'coalMine');
-  assert.equal(p.materials.find(r=>r.id==='wood').fromStock,25);assert.equal(p.materials.find(r=>r.id==='wood').purchased,0);
+  const p=previewBuilding(s,'ironMine');
+  assert.equal(p.materials.find(r=>r.id==='wood').fromStock,30);assert.equal(p.materials.find(r=>r.id==='wood').purchased,0);
   assert.equal(s.inventory.wood,30);assert.equal(s.inventory.stone,25);
 });
 
